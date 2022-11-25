@@ -45,7 +45,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+rampsHandler_t RampsData;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,8 +94,23 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM5_Init();
   MX_USART1_UART_Init();
+  MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
+  // htim1 is used in encoder mode
+  // htim2 is used in encoder mode
+  // htim3 is used in encoder mode
+  // htim4 is used in encoder mode
+  // htim5 is used for motor pwm generation
+  // htim9 is used to generate the interrupts for the ramps sync motion
 
+  RampsData.directionPin = DIR_PIN;
+  RampsData.directionPinPort = DIR_GPIO_PORT;
+  RampsData.encoderTimer = &htim2;
+  RampsData.motorTimer = &htim5;
+  RampsData.synTimer = &htim9;
+  RampsData.modbusUart = &huart1;
+
+  RampsStart(&RampsData);
   /* USER CODE END 2 */
 
   /* Init scheduler */
