@@ -300,9 +300,16 @@ void RampsTask(void *argument)
   rampsIndexData_t * indexData = &rampsData->indexData;
   rampsSyncData_t * syncData = &rampsData->syncData;
 
+  uint16_t ledTicks = 0;
   for(;;)
   {
     osDelay(50);
+
+    ledTicks = (ledTicks + 1) % 10;
+
+    if (ledTicks == 0) {
+      HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    }
 
     // Handle sync mode request
     if (shared->mode == MODE_SYNCHRO_INIT) {
