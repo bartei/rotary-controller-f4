@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ramps.h"
+#include "Ramps.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

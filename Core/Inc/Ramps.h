@@ -22,6 +22,7 @@
 #include "stm32f4xx_hal.h"
 #include "cmsis_os2.h"
 #include "Modbus.h"
+#include "Scales.h"
 
 #define MODBUS_ADDRESS 17
 #define RAMPS_CLOCK_FREQUENCY 1000000
@@ -49,7 +50,7 @@ typedef struct {
     int32_t finalPosition;
     int16_t unused_1;
     int32_t encoderPosition;
-    uint16_t unused_2;
+    uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
     int32_t unused_4;
     float maxSpeed;
@@ -61,6 +62,9 @@ typedef struct {
     float unused_5;
     int32_t synRatioNum;
     int32_t synRatioDen;
+    int32_t synOffset;
+    uint16_t synScaleIndex;
+    int32_t scalesPosition[SCALES_COUNT];
 } rampsSharedData_t;
 
 // This following structure is used only internally and it's not shared with the modbus data
@@ -86,14 +90,16 @@ typedef struct {
 
 typedef struct {
     // Modbus shared data
-    rampsSharedData_t sharedData;
+    rampsSharedData_t shared;
     rampsSyncData_t syncData;
     rampsIndexData_t indexData;
+
+    // Scales Data
+    scales_t scales;
 
     // STM32 Related
     TIM_HandleTypeDef * motorTimer;
     TIM_HandleTypeDef * synTimer;
-    TIM_HandleTypeDef * encoderTimer;
     UART_HandleTypeDef * modbusUart;
 
     GPIO_TypeDef * directionPinPort;
@@ -106,12 +112,11 @@ typedef struct {
     osThreadId_t TaskRampsHandle;
 } rampsHandler_t;
 
-void EncoderTimerInit(TIM_HandleTypeDef * encoder_htim);
 void RampsStart(rampsHandler_t * rampsData);
-void RampsMotionIsr(rampsHandler_t * rampsData);
-void SyncMotionIsr(rampsHandler_t * rampsData);
-void SyncMotionInit(rampsHandler_t * rampsData);
-void RampsTaskInit(rampsHandler_t * rampsData);
+void RampsMotionIsr(rampsHandler_t * data);
+void SyncMotionIsr(rampsHandler_t * data);
+void SyncMotionInit(rampsHandler_t * data);
+void startRampsTask(rampsHandler_t * rampsData);
 void RampsTask(void *argument);
 
 #endif

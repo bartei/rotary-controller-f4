@@ -100,12 +100,15 @@ int main(void)
   // htim2 is used in encoder mode
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
-  // htim5 is used for motor pwm generation
+  // htim5 is used for shared pwm generation
   // htim9 is used to generate the interrupts for the ramps sync motion
 
   RampsData.directionPin = DIR_PIN;
   RampsData.directionPinPort = DIR_GPIO_PORT;
-  RampsData.encoderTimer = &htim2;
+  RampsData.scales.scaleTimer[0] = &htim1;
+  RampsData.scales.scaleTimer[1] = &htim2;
+  RampsData.scales.scaleTimer[2] = &htim3;
+  RampsData.scales.scaleTimer[3] = &htim4;
   RampsData.motorTimer = &htim5;
   RampsData.synTimer = &htim9;
   RampsData.modbusUart = &huart1;
