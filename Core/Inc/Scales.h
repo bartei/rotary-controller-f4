@@ -20,6 +20,6 @@ typedef struct {
 } scales_t;
 
 void initScaleTimer(TIM_HandleTypeDef * timHandle);
-void updateScales(scales_t data);
-void startScalesTimers(scales_t data);
+void updateScales(scales_t * data);
+void startScalesTimers(scales_t * data);
 #endif //ROTARY_CONTROLLER_F4_SCALES_H

@@ -29,17 +29,40 @@ const osThreadAttr_t taskRampsAttributes = {
 // This variable is the handler for the modbus communication
 modbusHandler_t RampsModbusData;
 
+
+void configureOutputPin(GPIO_TypeDef * Port, uint16_t Pin) {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin : PtPin */
+  GPIO_InitStruct.Pin = Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(Port, &GPIO_InitStruct);
+}
+
+
 void RampsStart(rampsHandler_t * rampsData) {
   rampsData->shared.acceleration = 10;
   rampsData->shared.maxSpeed = 10000;
   rampsData->shared.minSpeed = 100;
 
+  // Configure Pins
+  configureOutputPin(DIR_GPIO_PORT, DIR_PIN);
+  configureOutputPin(ENA_GPIO_PORT, ENA_PIN);
+
   // Initialize and start encoder timer
-  startScalesTimers(rampsData->scales);
+  startScalesTimers(&rampsData->scales);
 
   // Start synchro interrupt
   HAL_TIM_Base_Start_IT(rampsData->synTimer);
 
+  // Start Modbus
   RampsModbusData.uModbusType = MB_SLAVE;
   RampsModbusData.port = rampsData->modbusUart;
   RampsModbusData.u8id = MODBUS_ADDRESS;
@@ -188,8 +211,8 @@ void SyncMotionInit(rampsHandler_t * data) {
   data->syncData.D = 2 * (shared->synRatioDen - shared->synRatioNum);
 
   // Configure the timer settings for the pwm generation, will be used as one pulse
-  __HAL_TIM_SET_AUTORELOAD(data->motorTimer, 100);
-  __HAL_TIM_SET_COMPARE(data->motorTimer, TIM_CHANNEL_1, 10);
+  __HAL_TIM_SET_AUTORELOAD(data->motorTimer, 150);
+  __HAL_TIM_SET_COMPARE(data->motorTimer, TIM_CHANNEL_1, 75);
 
   // Ensure the current and final positions are equal
   shared->currentPosition = shared->finalPosition;
@@ -207,19 +230,21 @@ void SyncMotionIsr(rampsHandler_t * data) {
   rampsSharedData_t * shared = &(data->shared);
   rampsSyncData_t * sync_data = &(data->syncData);
 
-  updateScales(data->scales);
-  shared->encoderPosition = data->scales.scalePosition[shared->synScaleIndex].positionCurrent;
+  updateScales(&data->scales);
 
   // Skip Conditions
   if (shared->mode != MODE_SYNCHRO || shared->finalPosition != shared->currentPosition) {
     return;
   }
 
+  sync_data->positionPrevious = sync_data->positionCurrent;
+  sync_data->positionCurrent = data->scales.scalePosition[shared->synScaleIndex].positionCurrent;
+
   if (sync_data->positionPrevious < sync_data->positionCurrent)
   {
     HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
     sync_data->direction = +1;
-    for (int32_t x = sync_data->positionPrevious; x < sync_data->positionCurrent; ++x) {
+    for (int32_t x = sync_data->positionPrevious; x < sync_data->positionCurrent;++x) {
       if (sync_data->D > 0) {
         // Error greater than 0, step forward the controlled axis
         shared->finalPosition += sync_data->yi;
@@ -244,7 +269,7 @@ void SyncMotionIsr(rampsHandler_t * data) {
       }
     }
   }
-  else if (shared->finalPosition != shared->currentPosition) {
+  if (shared->finalPosition != shared->currentPosition) {
     HAL_TIM_PWM_Start_IT(data->motorTimer, TIM_CHANNEL_1);
   }
 }
@@ -280,12 +305,6 @@ void RampsTask(void *argument)
       data->shared.scalesPosition[i] = data->scales.scalePosition[i].positionCurrent;
     }
 
-    // Handle Status Led Heartbeat
-    ledTicks = (ledTicks + 1) % 10;
-    if (ledTicks == 0) {
-      HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    }
-
     // Handle sync mode request
     if (shared->mode == MODE_SYNCHRO_INIT) {
       SyncMotionInit(data);
@@ -298,7 +317,8 @@ void RampsTask(void *argument)
       int scaleIndex = data->shared.encoderPresetIndex;
       // Counter reset
       __HAL_TIM_SET_COUNTER(data->scales.scaleTimer[scaleIndex], 0);
-      syncData->encoderPrevious = 0;
+      data->scales.scalePosition[scaleIndex].encoderCurrent = 0;
+      data->scales.scalePosition[scaleIndex].encoderPrevious = 0;
 
       // Sync data struct reset
       data->scales.scalePosition[scaleIndex].positionCurrent = shared->encoderPresetValue;

@@ -26,9 +26,10 @@
 
 #define MODBUS_ADDRESS 17
 #define RAMPS_CLOCK_FREQUENCY 1000000
-#define DIR_PIN GPIO_PIN_7
-#define DIR_GPIO_PORT GPIOA
-
+#define DIR_PIN GPIO_PIN_8
+#define DIR_GPIO_PORT GPIOB
+#define ENA_PIN GPIO_PIN_9
+#define ENA_GPIO_PORT GPIOB
 
 typedef enum
 {
@@ -45,21 +46,21 @@ typedef enum
 } ramps_mode_t ;
 
 typedef struct {
-    ramps_mode_t mode;
-    int32_t currentPosition;
-    int32_t finalPosition;
-    int16_t unused_1;
-    int32_t encoderPosition;
+    ramps_mode_t mode; // 0
+    int32_t currentPosition; // 2
+    int32_t finalPosition; // 4
+    int16_t unused_6;
+    int32_t unused_8;
     uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
-    int32_t unused_4;
+    int32_t unused_14;
     float maxSpeed;
     float minSpeed;
     float currentSpeed;
     float acceleration;
     int32_t stepRatioNum;
     int32_t stepRatioDen;
-    float unused_5;
+    float unused_28;
     int32_t synRatioNum;
     int32_t synRatioDen;
     int32_t synOffset;
@@ -72,8 +73,6 @@ typedef struct {
 // Y axis with the X axis, where X is the encoder position returned by the master axis and the
 // y is the controlled motion axis.
 typedef struct {
-    uint16_t encoderPrevious, encoderCurrent;
-    int16_t encoderDelta;
     int32_t positionPrevious, positionCurrent;
     int32_t yi;
     int32_t D;
