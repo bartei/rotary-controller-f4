@@ -114,6 +114,8 @@ int main(void)
   RampsData.modbusUart = &huart1;
 
   RampsStart(&RampsData);
+
+  DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -161,9 +163,11 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  int result = HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+  if (result != HAL_OK)
   {
-    Error_Handler();
+//    Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks

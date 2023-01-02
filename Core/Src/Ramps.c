@@ -100,6 +100,7 @@ void motorSynchroModeIsr(rampsHandler_t * data) {
  * @param data Reference to the ramps handler data structure
  */
 void motorIndexModeIsr(rampsHandler_t * data) {
+  DWT->CYCCNT = 0;
   // Stop the timer and exit if mode is 0
    rampsSharedData_t * shared = &data->shared;
    rampsIndexData_t * indexData = &data->indexData;
@@ -167,6 +168,7 @@ void motorIndexModeIsr(rampsHandler_t * data) {
     shared->mode = MODE_HALT;
     HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
   }
+  shared->unused_14 = DWT->CYCCNT;
 }
 
 /**
@@ -299,7 +301,6 @@ void RampsTask(void *argument)
   for(;;)
   {
     osDelay(50);
-
     // Refresh scales position reporting in the modbus shared data
     for (int i = 0; i < SCALES_COUNT; ++i) {
       data->shared.scalesPosition[i] = data->scales.scalePosition[i].positionCurrent;
