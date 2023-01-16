@@ -88,3 +88,6 @@ dkms.conf
 
 .idea
 /cmake-build-debug/
+/.settings/
+/Debug/
+/rotary-controller-f4.launch
