@@ -95,6 +95,7 @@ int main(void)
   MX_TIM5_Init();
   MX_USART1_UART_Init();
   MX_TIM9_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
   // htim1 is used in encoder mode
   // htim2 is used in encoder mode
@@ -124,7 +125,6 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
-
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */

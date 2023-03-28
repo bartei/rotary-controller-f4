@@ -31,22 +31,28 @@
 #define ENA_PIN GPIO_PIN_9
 #define ENA_GPIO_PORT GPIOB
 
-typedef enum
+typedef struct
 {
-    MODE_HALT = 0,
-    MODE_INDEX = 10,
-    MODE_INDEX_INIT = 11,
-    MODE_SYNCHRO = 20,
-    MODE_SYNCHRO_INIT = 21,
-    MODE_JOG = 30,
-    MODE_JOG_FW = 31,
-    MODE_JOG_BW = 32,
-    MODE_SET_ENCODER = 40,
-    MODE_SYNCHRO_BAD_RATIO = 101,
+    unsigned enable: 1;                 // Bit 0
+    unsigned servo_enable: 1;           // Bit 1
+    unsigned sync_input_enable_0: 1;    // Bit 2
+    unsigned sync_input_enable_1: 1;    // Bit 3
+    unsigned sync_input_enable_2: 1;    // Bit 4
+    unsigned sync_input_enable_3: 1;    // Bit 5
+    unsigned error: 1;                  // Bit 6
+    unsigned unused_1: 1;               // Bit 7
+    unsigned unused_2: 1;               // Bit 8
+    unsigned unused_3: 1;               // Bit 9
+    unsigned unused_4: 1;               // Bit 10
+    unsigned rq_set_encoder: 1;         // Bit 11
+    unsigned rq_synchro_init: 1;        // Bit 12
+    unsigned mode_synchro: 1;           // Bit 13
+    unsigned rq_index_init: 1;          // Bit 14
+    unsigned mode_index: 1;             // Bit 15
 } ramps_mode_t ;
 
 typedef struct {
-    ramps_mode_t mode; // 0
+    ramps_mode_t status; // 0
     int32_t currentPosition; // 2
     int32_t finalPosition; // 4
     int16_t unused_6;
@@ -97,6 +103,7 @@ typedef struct {
     scales_t scales;
 
     // STM32 Related
+    TIM_HandleTypeDef * indexTimer;
     TIM_HandleTypeDef * motorTimer;
     TIM_HandleTypeDef * synTimer;
     UART_HandleTypeDef * modbusUart;
