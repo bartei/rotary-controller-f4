@@ -105,7 +105,7 @@ void motorIndexModeIsr(rampsHandler_t * data) {
    rampsSharedData_t * shared = &data->shared;
    rampsIndexData_t * indexData = &data->indexData;
 
-  if (shared->mode == MODE_HALT) {
+  if (!shared->mode.run) {
     HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
     return;
   }
@@ -165,7 +165,8 @@ void motorIndexModeIsr(rampsHandler_t * data) {
 
   // Motion path finished, go back to halt mode
   if (indexData->currentStep == indexData->totalSteps) {
-    shared->mode = MODE_HALT;
+    shared->mode.run = 0;
+    shared->mode.mode_index = 0;
     HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
   }
   shared->unused_14 = DWT->CYCCNT;
@@ -179,9 +180,9 @@ void motorIndexModeIsr(rampsHandler_t * data) {
  */
 void RampsMotionIsr(rampsHandler_t * data) {
   // Controller is in index mode
-  if (data->shared.mode == MODE_INDEX) {
+  if (data->shared.mode.mode_index && data->shared.mode.run) {
     motorIndexModeIsr(data);
-  } else if (data->shared.mode == MODE_SYNCHRO) {
+  } else if (data->shared.mode.mode_synchro == 1) {
     motorSynchroModeIsr(data);
   }
 }
@@ -197,12 +198,18 @@ void RampsMotionIsr(rampsHandler_t * data) {
 void SyncMotionInit(rampsHandler_t * data) {
   rampsSharedData_t * shared = &data->shared;
 
+  // Skip function if synchro not requested
+  if (!shared->mode.rq_synchro_init) {
+    return;
+  }
+
+
   // Verify the ratio to be acceptable, return and set error otherwise
   if (shared->synRatioNum == 0 ||
       shared->synRatioDen == 0 ||
       shared->synRatioDen > shared->synRatioNum)
   {
-    shared->mode = MODE_SYNCHRO_BAD_RATIO;
+    shared->mode.error_bad_ratio = 1;
     return;
   }
 
@@ -218,7 +225,9 @@ void SyncMotionInit(rampsHandler_t * data) {
 
   // Ensure the current and final positions are equal
   shared->currentPosition = shared->finalPosition;
-  shared->mode = MODE_SYNCHRO;
+  shared->mode.mode_synchro = 1;
+  shared->mode.rq_synchro_init = 0;
+  shared->mode.run = 1;
 }
 
 /**
@@ -235,7 +244,7 @@ void SyncMotionIsr(rampsHandler_t * data) {
   updateScales(&data->scales);
 
   // Skip Conditions
-  if (shared->mode != MODE_SYNCHRO || shared->finalPosition != shared->currentPosition) {
+  if (!shared->mode.mode_synchro || shared->finalPosition != shared->currentPosition) {
     return;
   }
 
@@ -307,13 +316,10 @@ void RampsTask(void *argument)
     }
 
     // Handle sync mode request
-    if (shared->mode == MODE_SYNCHRO_INIT) {
-      SyncMotionInit(data);
-      shared->mode = MODE_SYNCHRO; // Set proper mode
-    }
+    SyncMotionInit(data);
 
     // Handle request to set encoder count value
-    if (shared->mode == MODE_SET_ENCODER) {
+    if (shared->mode.set_encoder && !shared->mode.run) {
       // Reset everything and configure the provided value
       int scaleIndex = data->shared.encoderPresetIndex;
       // Counter reset
@@ -326,14 +332,14 @@ void RampsTask(void *argument)
 
       // Shared data struct reset
       shared->scalesPosition[scaleIndex] = shared->encoderPresetValue;
-      shared->mode = MODE_HALT; // Set proper mode
+      shared->mode.set_encoder = 0; // Set proper mode
     }
 
     // Handle index mode request
-    if (shared->mode == MODE_INDEX_INIT) {
+    if (shared->mode.rq_index_init) {
       // Provided final destination is the same as current, go back to halt
       if (shared->finalPosition == shared->currentPosition) {
-        shared->mode = MODE_HALT;
+        shared->mode.rq_index_init = 0;
       }
 
       // Set Direction based on destination
@@ -345,7 +351,8 @@ void RampsTask(void *argument)
 
       // Set mode
       // Reset counters used for ramps generation, will have to improve this
-      shared->mode = MODE_INDEX;
+      shared->mode.mode_index = 1;
+      shared->mode.run = 1;
       indexData->currentStep = 0;
       indexData->totalSteps = abs(shared->finalPosition - shared->currentPosition);
 
@@ -353,8 +360,8 @@ void RampsTask(void *argument)
       HAL_TIM_PWM_Start_IT(data->motorTimer, TIM_CHANNEL_1);
     }
 
-    if (shared->mode == MODE_INDEX && shared->finalPosition == shared->currentPosition) {
-      shared->mode = MODE_HALT;
+    if (shared->mode.mode_index && shared->finalPosition == shared->currentPosition) {
+      shared->mode.run = 0;
       HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
     }
   }

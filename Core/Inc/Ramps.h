@@ -31,22 +31,28 @@
 #define ENA_PIN GPIO_PIN_9
 #define ENA_GPIO_PORT GPIOB
 
-typedef enum
+typedef struct
 {
-    MODE_HALT = 0,
-    MODE_INDEX = 10,
-    MODE_INDEX_INIT = 11,
-    MODE_SYNCHRO = 20,
-    MODE_SYNCHRO_INIT = 21,
-    MODE_JOG = 30,
-    MODE_JOG_FW = 31,
-    MODE_JOG_BW = 32,
-    MODE_SET_ENCODER = 40,
-    MODE_SYNCHRO_BAD_RATIO = 101,
-} ramps_mode_t ;
+    int run : 1;
+    int error_bad_ratio : 1;
+    int bit2 : 1;
+    int bit3 : 1;
+    int bit4 : 1;
+    int bit5 : 1;
+    int bit6 : 1;
+    int bit7 : 1;
+    int bit8 : 1;
+    int bit9 : 1;
+    int bit10 : 1;
+    int set_encoder : 1;
+    int rq_synchro_init : 1;
+    int mode_synchro : 1;
+    int mode_index : 1;
+    int rq_index_init : 1;
+} ramps_mode_flags ;
 
 typedef struct {
-    ramps_mode_t mode; // 0
+    ramps_mode_flags mode; // 0
     int32_t currentPosition; // 2
     int32_t finalPosition; // 4
     int16_t unused_6;
