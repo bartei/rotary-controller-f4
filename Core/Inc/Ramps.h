@@ -33,45 +33,47 @@
 
 typedef struct
 {
-    int run : 1;
-    int error_bad_ratio : 1;
-    int bit2 : 1;
-    int bit3 : 1;
-    int bit4 : 1;
-    int bit5 : 1;
-    int bit6 : 1;
-    int bit7 : 1;
-    int bit8 : 1;
-    int bit9 : 1;
-    int bit10 : 1;
-    int set_encoder : 1;
-    int rq_synchro_init : 1;
-    int mode_synchro : 1;
-    int mode_index : 1;
-    int rq_index_init : 1;
-} ramps_mode_flags ;
+    unsigned enable: 1;
+    unsigned rq_set_encoder: 1;
+    unsigned rq_synchro_mode: 1;
+    unsigned rq_index_mode: 1;
+} ramps_control_flags ;
+
+typedef struct
+{
+  unsigned sta_ready : 1;
+  unsigned sta_forward :1;
+  unsigned sta_reverse :1;
+  unsigned error_bad_ratio: 1;
+  unsigned ack_set_encoder : 1;
+  unsigned ack_synchro_mode : 1;
+  unsigned ack_index_mode : 1;
+  unsigned ack_jog_mode : 1;
+  unsigned index_mode : 1;
+  unsigned synchro_mode : 1;
+} ramps_status_flags;
 
 typedef struct {
-    ramps_mode_flags mode; // 0
-    int32_t currentPosition; // 2
-    int32_t finalPosition; // 4
-    int16_t unused_6;
-    int32_t unused_8;
-    uint16_t encoderPresetIndex;
-    int32_t encoderPresetValue;
-    int32_t unused_14;
-    float maxSpeed;
-    float minSpeed;
-    float currentSpeed;
-    float acceleration;
-    int32_t stepRatioNum;
-    int32_t stepRatioDen;
-    float unused_28;
-    int32_t synRatioNum;
-    int32_t synRatioDen;
-    int32_t synOffset;
-    uint16_t synScaleIndex;
-    int32_t scalesPosition[SCALES_COUNT];
+    ramps_control_flags control; // 0
+    ramps_status_flags status; // 2
+    int32_t currentPosition; // 4
+    int32_t finalPosition; // 6
+    int32_t unused_8; // 8
+    uint16_t encoderPresetIndex; // 10
+    int32_t encoderPresetValue; // 12
+    int32_t unused_14; // 14
+    float maxSpeed; // 16
+    float minSpeed; // 18
+    float currentSpeed; // 20
+    float acceleration; // 22
+    int32_t stepRatioNum; // 24
+    int32_t stepRatioDen; // 26
+    float unused_28; // 28
+    int32_t synRatioNum; // 30
+    int32_t synRatioDen; // 32
+    int32_t synOffset; // 34
+    uint16_t synScaleIndex; // 36
+    int32_t scalesPosition[SCALES_COUNT]; // 38
 } rampsSharedData_t;
 
 // This following structure is used only internally and it's not shared with the modbus data

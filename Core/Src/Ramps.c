@@ -105,7 +105,7 @@ void motorIndexModeIsr(rampsHandler_t * data) {
    rampsSharedData_t * shared = &data->shared;
    rampsIndexData_t * indexData = &data->indexData;
 
-  if (!shared->mode.run) {
+  if (!shared->control.enable) {
     HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
     return;
   }
@@ -139,7 +139,8 @@ void motorIndexModeIsr(rampsHandler_t * data) {
           shared->currentSpeed > shared->minSpeed &&
           (indexData->currentStep > indexData->totalSteps / 2) &&
           (indexData->currentStep > (indexData->totalSteps - indexData->decelSteps))
-          ) {
+          )
+  {
     shared->currentSpeed = shared->currentSpeed - (float) shared->acceleration;
     indexData->floatAccelInterval = (float)RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
   }
@@ -165,8 +166,7 @@ void motorIndexModeIsr(rampsHandler_t * data) {
 
   // Motion path finished, go back to halt mode
   if (indexData->currentStep == indexData->totalSteps) {
-    shared->mode.run = 0;
-    shared->mode.mode_index = 0;
+    shared->status.index_mode = false;
     HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
   }
   shared->unused_14 = DWT->CYCCNT;
@@ -180,9 +180,9 @@ void motorIndexModeIsr(rampsHandler_t * data) {
  */
 void RampsMotionIsr(rampsHandler_t * data) {
   // Controller is in index mode
-  if (data->shared.mode.mode_index && data->shared.mode.run) {
+  if (data->shared.status.ack_index_mode && data->shared.control.enable) {
     motorIndexModeIsr(data);
-  } else if (data->shared.mode.mode_synchro == 1) {
+  } else if (data->shared.status.ack_synchro_mode && data->shared.control.enable) {
     motorSynchroModeIsr(data);
   }
 }
@@ -199,17 +199,19 @@ void SyncMotionInit(rampsHandler_t * data) {
   rampsSharedData_t * shared = &data->shared;
 
   // Skip function if synchro not requested
-  if (!shared->mode.rq_synchro_init) {
+  if (!shared->control.rq_synchro_mode) {
+    shared->status.synchro_mode = false;
+    shared->status.ack_synchro_mode = shared->control.rq_synchro_mode;
     return;
   }
-
 
   // Verify the ratio to be acceptable, return and set error otherwise
   if (shared->synRatioNum == 0 ||
       shared->synRatioDen == 0 ||
       shared->synRatioDen > shared->synRatioNum)
   {
-    shared->mode.error_bad_ratio = 1;
+    shared->status.error_bad_ratio = 1;
+    shared->status.ack_synchro_mode = shared->control.rq_synchro_mode;
     return;
   }
 
@@ -225,9 +227,8 @@ void SyncMotionInit(rampsHandler_t * data) {
 
   // Ensure the current and final positions are equal
   shared->currentPosition = shared->finalPosition;
-  shared->mode.mode_synchro = 1;
-  shared->mode.rq_synchro_init = 0;
-  shared->mode.run = 1;
+  shared->status.synchro_mode = true;
+  shared->status.ack_synchro_mode = shared->control.rq_synchro_mode;
 }
 
 /**
@@ -244,7 +245,7 @@ void SyncMotionIsr(rampsHandler_t * data) {
   updateScales(&data->scales);
 
   // Skip Conditions
-  if (!shared->mode.mode_synchro || shared->finalPosition != shared->currentPosition) {
+  if (!shared->status.synchro_mode || shared->finalPosition != shared->currentPosition) {
     return;
   }
 
@@ -319,7 +320,7 @@ void RampsTask(void *argument)
     SyncMotionInit(data);
 
     // Handle request to set encoder count value
-    if (shared->mode.set_encoder && !shared->mode.run) {
+    if (shared->control.rq_set_encoder && !shared->status.ack_set_encoder) {
       // Reset everything and configure the provided value
       int scaleIndex = data->shared.encoderPresetIndex;
       // Counter reset
@@ -332,14 +333,15 @@ void RampsTask(void *argument)
 
       // Shared data struct reset
       shared->scalesPosition[scaleIndex] = shared->encoderPresetValue;
-      shared->mode.set_encoder = 0; // Set proper mode
+      shared->status.ack_set_encoder = true; // Acknowledge set encoder request
     }
+    shared->status.ack_set_encoder = shared->control.rq_set_encoder;
 
     // Handle index mode request
-    if (shared->mode.rq_index_init) {
+    if (shared->control.rq_index_mode && !shared->status.ack_index_mode) {
       // Provided final destination is the same as current, go back to halt
       if (shared->finalPosition == shared->currentPosition) {
-        shared->mode.rq_index_init = 0;
+        shared->status.index_mode = 0;
       }
 
       // Set Direction based on destination
@@ -351,17 +353,17 @@ void RampsTask(void *argument)
 
       // Set mode
       // Reset counters used for ramps generation, will have to improve this
-      shared->mode.mode_index = 1;
-      shared->mode.run = 1;
+      shared->status.index_mode = true;
       indexData->currentStep = 0;
       indexData->totalSteps = abs(shared->finalPosition - shared->currentPosition);
 
       // Start the timer responsible for the ramps generation
       HAL_TIM_PWM_Start_IT(data->motorTimer, TIM_CHANNEL_1);
     }
+      shared->status.ack_index_mode = shared->control.rq_index_mode;
 
-    if (shared->mode.mode_index && shared->finalPosition == shared->currentPosition) {
-      shared->mode.run = 0;
+    if (shared->status.index_mode && shared->finalPosition == shared->currentPosition) {
+      shared->status.index_mode = false;
       HAL_TIM_PWM_Stop_IT(data->motorTimer, TIM_CHANNEL_1);
     }
   }
