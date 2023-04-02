@@ -59,10 +59,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define USR_LED_Pin GPIO_PIN_12
 #define USR_LED_GPIO_Port GPIOB
-#define USER_14_Pin GPIO_PIN_14
-#define USER_14_GPIO_Port GPIOB
-#define USER_15_Pin GPIO_PIN_15
-#define USER_15_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
