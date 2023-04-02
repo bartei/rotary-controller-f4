@@ -22,12 +22,14 @@
 #include "stm32f4xx_hal.h"
 #include "cmsis_os2.h"
 #include "Modbus.h"
+#include "Scales.h"
 
 #define MODBUS_ADDRESS 17
 #define RAMPS_CLOCK_FREQUENCY 1000000
-#define DIR_PIN GPIO_PIN_7
-#define DIR_GPIO_PORT GPIOA
-
+#define DIR_PIN GPIO_PIN_8
+#define DIR_GPIO_PORT GPIOB
+#define ENA_PIN GPIO_PIN_9
+#define ENA_GPIO_PORT GPIOB
 
 typedef enum
 {
@@ -44,23 +46,26 @@ typedef enum
 } ramps_mode_t ;
 
 typedef struct {
-    ramps_mode_t mode;
-    int32_t currentPosition;
-    int32_t finalPosition;
-    int16_t unused_1;
-    int32_t encoderPosition;
-    uint16_t unused_2;
+    ramps_mode_t mode; // 0
+    int32_t currentPosition; // 2
+    int32_t finalPosition; // 4
+    int16_t unused_6;
+    int32_t unused_8;
+    uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
-    int32_t unused_4;
+    int32_t unused_14;
     float maxSpeed;
     float minSpeed;
     float currentSpeed;
     float acceleration;
     int32_t stepRatioNum;
     int32_t stepRatioDen;
-    float unused_5;
+    float unused_28;
     int32_t synRatioNum;
     int32_t synRatioDen;
+    int32_t synOffset;
+    uint16_t synScaleIndex;
+    int32_t scalesPosition[SCALES_COUNT];
 } rampsSharedData_t;
 
 // This following structure is used only internally and it's not shared with the modbus data
@@ -68,8 +73,6 @@ typedef struct {
 // Y axis with the X axis, where X is the encoder position returned by the master axis and the
 // y is the controlled motion axis.
 typedef struct {
-    uint16_t encoderPrevious, encoderCurrent;
-    int16_t encoderDelta;
     int32_t positionPrevious, positionCurrent;
     int32_t yi;
     int32_t D;
@@ -86,14 +89,16 @@ typedef struct {
 
 typedef struct {
     // Modbus shared data
-    rampsSharedData_t sharedData;
+    rampsSharedData_t shared;
     rampsSyncData_t syncData;
     rampsIndexData_t indexData;
+
+    // Scales Data
+    scales_t scales;
 
     // STM32 Related
     TIM_HandleTypeDef * motorTimer;
     TIM_HandleTypeDef * synTimer;
-    TIM_HandleTypeDef * encoderTimer;
     UART_HandleTypeDef * modbusUart;
 
     GPIO_TypeDef * directionPinPort;
@@ -106,12 +111,11 @@ typedef struct {
     osThreadId_t TaskRampsHandle;
 } rampsHandler_t;
 
-void EncoderTimerInit(TIM_HandleTypeDef * encoder_htim);
 void RampsStart(rampsHandler_t * rampsData);
-void RampsMotionIsr(rampsHandler_t * rampsData);
-void SyncMotionIsr(rampsHandler_t * rampsData);
-void SyncMotionInit(rampsHandler_t * rampsData);
-void RampsTaskInit(rampsHandler_t * rampsData);
+void RampsMotionIsr(rampsHandler_t * data);
+void SyncMotionIsr(rampsHandler_t * data);
+void SyncMotionInit(rampsHandler_t * data);
+void startRampsTask(rampsHandler_t * rampsData);
 void RampsTask(void *argument);
 
 #endif

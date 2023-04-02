@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ramps.h"
+#include "Ramps.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -57,8 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define USR_LED_Pin GPIO_PIN_13
-#define USR_LED_GPIO_Port GPIOC
+#define USR_LED_Pin GPIO_PIN_12
+#define USR_LED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

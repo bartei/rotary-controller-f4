@@ -100,17 +100,22 @@ int main(void)
   // htim2 is used in encoder mode
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
-  // htim5 is used for motor pwm generation
+  // htim5 is used for shared pwm generation
   // htim9 is used to generate the interrupts for the ramps sync motion
 
   RampsData.directionPin = DIR_PIN;
   RampsData.directionPinPort = DIR_GPIO_PORT;
-  RampsData.encoderTimer = &htim2;
+  RampsData.scales.scaleTimer[0] = &htim1;
+  RampsData.scales.scaleTimer[1] = &htim2;
+  RampsData.scales.scaleTimer[2] = &htim3;
+  RampsData.scales.scaleTimer[3] = &htim4;
   RampsData.motorTimer = &htim5;
   RampsData.synTimer = &htim9;
   RampsData.modbusUart = &huart1;
 
   RampsStart(&RampsData);
+
+  DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -119,7 +124,6 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
-
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -149,12 +153,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
   RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
