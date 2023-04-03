@@ -26,9 +26,9 @@
 
 #define MODBUS_ADDRESS 17
 #define RAMPS_CLOCK_FREQUENCY 1000000
-#define DIR_PIN GPIO_PIN_8
+#define DIR_PIN GPIO_PIN_14
 #define DIR_GPIO_PORT GPIOB
-#define ENA_PIN GPIO_PIN_9
+#define ENA_PIN GPIO_PIN_15
 #define ENA_GPIO_PORT GPIOB
 
 typedef enum
@@ -49,7 +49,7 @@ typedef struct {
     ramps_mode_t mode; // 0
     int32_t currentPosition; // 2
     int32_t finalPosition; // 4
-    int16_t unused_6;
+    int16_t indexDeltaSteps; // 6 -> Defines how many steps forwards/backwards for stepping in synchro mode
     int32_t unused_8;
     uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
@@ -85,6 +85,7 @@ typedef struct {
     int32_t currentStep;
     int32_t totalSteps;
     int32_t decelSteps;
+    int32_t direction;
 } rampsIndexData_t;
 
 typedef struct {
@@ -97,8 +98,10 @@ typedef struct {
     scales_t scales;
 
     // STM32 Related
-    TIM_HandleTypeDef * motorTimer;
-    TIM_HandleTypeDef * synTimer;
+    TIM_HandleTypeDef * motorPwmTimer;
+    TIM_HandleTypeDef * synchroRefreshTimer;
+    TIM_HandleTypeDef * indexRefreshTimer;
+
     UART_HandleTypeDef * modbusUart;
 
     GPIO_TypeDef * directionPinPort;
@@ -113,9 +116,10 @@ typedef struct {
 
 void RampsStart(rampsHandler_t * rampsData);
 void RampsMotionIsr(rampsHandler_t * data);
+void IndexMotionIsr(rampsHandler_t * data);
 void SyncMotionIsr(rampsHandler_t * data);
 void SyncMotionInit(rampsHandler_t * data);
-void startRampsTask(rampsHandler_t * rampsData);
+void StartRampsTask(rampsHandler_t * rampsData);
 void RampsTask(void *argument);
 
 #endif
