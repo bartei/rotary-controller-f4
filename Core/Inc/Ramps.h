@@ -34,8 +34,6 @@
 typedef enum
 {
     MODE_HALT = 0,
-    MODE_INDEX = 10,
-    MODE_INDEX_INIT = 11,
     MODE_SYNCHRO = 20,
     MODE_SYNCHRO_INIT = 21,
     MODE_JOG = 30,

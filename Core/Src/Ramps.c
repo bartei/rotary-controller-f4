@@ -21,16 +21,16 @@
 
 
 const osThreadAttr_t taskRampsAttributes = {
-        .name = "taskRamps",
-        .stack_size = 128 * 4,
-        .priority = (osPriority_t) osPriorityNormal,
+.name = "taskRamps",
+.stack_size = 128 * 4,
+.priority = (osPriority_t) osPriorityNormal,
 };
 
 // This variable is the handler for the modbus communication
 modbusHandler_t RampsModbusData;
 
 
-void configureOutputPin(GPIO_TypeDef * Port, uint16_t Pin) {
+void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
@@ -47,7 +47,7 @@ void configureOutputPin(GPIO_TypeDef * Port, uint16_t Pin) {
 }
 
 
-void RampsStart(rampsHandler_t * rampsData) {
+void RampsStart(rampsHandler_t *rampsData) {
   rampsData->shared.acceleration = 10;
   rampsData->shared.maxSpeed = 10000;
   rampsData->shared.minSpeed = 100;
@@ -69,13 +69,13 @@ void RampsStart(rampsHandler_t * rampsData) {
   RampsModbusData.u8id = MODBUS_ADDRESS;
   RampsModbusData.u16timeOut = 1000;
   RampsModbusData.EN_Port = NULL;
-  RampsModbusData.u16regs = (uint16_t *)(&rampsData->shared);
+  RampsModbusData.u16regs = (uint16_t *) (&rampsData->shared);
   RampsModbusData.u16regsize = sizeof(rampsData->shared) / sizeof(uint16_t);
   RampsModbusData.xTypeHW = USART_HW;
   ModbusInit(&RampsModbusData);
   ModbusStart(&RampsModbusData);
 
-    StartRampsTask(rampsData);
+  StartRampsTask(rampsData);
 }
 
 /**
@@ -85,91 +85,16 @@ void RampsStart(rampsHandler_t * rampsData) {
  * requested number of steps
  * @param data Reference to the ramps handler data structure
  */
-void motorSynchroModeIsr(rampsHandler_t * data) {
+void motorSynchroModeIsr(rampsHandler_t *data) {
   if (HAL_GPIO_ReadPin(DIR_GPIO_PORT, DIR_PIN) == GPIO_PIN_SET) {
-	  data->shared.currentPosition++;
+    data->shared.currentPosition++;
   } else {
-	  data->shared.currentPosition--;
+    data->shared.currentPosition--;
   }
 
   HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
 }
 
-/**
- * This function has to be called from the ISR associated with the timer used to generate
- * the pwm signal for the shared step pulse train.
- * This method is used to generate the acc/dec ramps when running in index mode
- * @param data Reference to the ramps handler data structure
- */
-void motorIndexModeIsr(rampsHandler_t * data) {
-  // Stop the timer and exit if mode is 0
-   rampsSharedData_t * shared = &data->shared;
-   rampsIndexData_t * indexData = &data->indexData;
-
-  if (shared->mode == MODE_HALT) {
-    HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
-    return;
-  }
-
-  // Handle the initialization of the motion when step is 0
-  if (indexData->currentStep == 0) {
-    indexData->floatAccelInterval = shared->acceleration;
-    shared->currentSpeed = shared->minSpeed;
-    indexData->stepRatio =
-            (float )shared->stepRatioNum /
-            (float )shared->stepRatioDen;
-    indexData->decelSteps = 0;
-  }
-
-  // Handle acceleration phase
-  if (shared->currentSpeed < shared->maxSpeed && (indexData->currentStep < indexData->totalSteps / 2) ) {
-    shared->currentSpeed = shared->currentSpeed + shared->acceleration;
-    indexData->floatAccelInterval = (float)RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
-
-    if (shared->currentSpeed > shared->maxSpeed) {
-      shared->currentSpeed = shared->maxSpeed;
-    }
-  } else if (indexData->decelSteps == 0) {
-    // Store the count of steps it took to accelerate, so it can be used to define when to start
-    // decelerating without doing further calculations.
-    indexData->decelSteps = indexData->currentStep;
-  }
-
-  // Handle deceleration phase
-  if (
-          shared->currentSpeed > shared->minSpeed &&
-          (indexData->currentStep > indexData->totalSteps / 2) &&
-          (indexData->currentStep > (indexData->totalSteps - indexData->decelSteps))
-          ) {
-    shared->currentSpeed = shared->currentSpeed - (float) shared->acceleration;
-    indexData->floatAccelInterval = (float)RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
-  }
-
-  // Configure the timer preload and the pwm duty cycle to 50%
-  if (indexData->floatAccelInterval > 65535) {
-    __HAL_TIM_SET_AUTORELOAD(data->motorPwmTimer, 65535);
-    __HAL_TIM_SET_COMPARE(data->motorPwmTimer, TIM_CHANNEL_1, 10);
-  } else {
-    __HAL_TIM_SET_AUTORELOAD(data->motorPwmTimer, (uint16_t)indexData->floatAccelInterval);
-    __HAL_TIM_SET_COMPARE(data->motorPwmTimer, TIM_CHANNEL_1, 10);
-  }
-
-  // Increment the current step
-  indexData->currentStep++;
-
-  if (shared->currentPosition < shared->finalPosition) {
-    shared->currentPosition = shared->currentPosition + 1;
-  }
-  if (shared->currentPosition > shared->finalPosition) {
-    shared->currentPosition = shared->currentPosition - 1;
-  }
-
-  // Motion path finished, go back to halt mode
-  if (indexData->currentStep == indexData->totalSteps) {
-    shared->mode = MODE_HALT;
-    HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
-  }
-}
 
 /**
  * Call this method from the interrupt service routine associated with the pwm generation timer
@@ -177,11 +102,9 @@ void motorIndexModeIsr(rampsHandler_t * data) {
  * @param rampsTimer handle reference to the ramps generation time, the same as the calling isr
  * @param data the data structure holding all the rotary controller data
  */
-void RampsMotionIsr(rampsHandler_t * data) {
+void RampsMotionIsr(rampsHandler_t *data) {
   // Controller is in index mode
-  if (data->shared.mode == MODE_INDEX) {
-    motorIndexModeIsr(data);
-  } else if (data->shared.mode == MODE_SYNCHRO) {
+  if (data->shared.mode == MODE_SYNCHRO) {
     motorSynchroModeIsr(data);
   }
 }
@@ -189,19 +112,14 @@ void RampsMotionIsr(rampsHandler_t * data) {
 /**
  * This function initializes the data and resources for the operation of the controlled axis so that it moves
  * in sync with an encoder reference.
- * @param delta_x used to set the ratio of the motion, same as the numerator in the ratio
- * @param delta_y used to set the ratio of the motion, same as the denominator in the ratio
- * @param ramps_htim reference to the timer used to generate the stepper shared steps
- * @param data reference to the data structure holding the controlled axis data
  */
-void SyncMotionInit(rampsHandler_t * data) {
-  rampsSharedData_t * shared = &data->shared;
+void SyncMotionInit(rampsHandler_t *data) {
+  rampsSharedData_t *shared = &data->shared;
 
   // Verify the ratio to be acceptable, return and set error otherwise
   if (shared->synRatioNum == 0 ||
       shared->synRatioDen == 0 ||
-      shared->synRatioDen > shared->synRatioNum)
-  {
+      shared->synRatioDen > shared->synRatioNum) {
     shared->mode = MODE_SYNCHRO_BAD_RATIO;
     return;
   }
@@ -226,88 +144,76 @@ void SyncMotionInit(rampsHandler_t * data) {
  * during synchro mode
  * @param data
  */
-void IndexMotionIsr(rampsHandler_t * data) {
-    // Stop the timer and exit if mode is 0
-    rampsSharedData_t * shared = &data->shared;
-    rampsIndexData_t * indexData = &data->indexData;
+void IndexMotionIsr(rampsHandler_t *data) {
+  // Stop the timer and exit if mode is 0
+  rampsSharedData_t *shared = &data->shared;
+  rampsIndexData_t *indexData = &data->indexData;
 
-//	if ((data->indexRefreshTimer->Instance->SR & 0b1) == 0) {
-//		return;
-//	}
-    // Check for start conditions, if start conditions then load the parameters
-    if (shared->indexDeltaSteps != 0 && indexData->currentStep == indexData->totalSteps)
-    {
-        if (shared->indexDeltaSteps > 0) {
-            indexData->direction = 1;
-        } else {
-            indexData->direction = -1;
-        }
-
-        indexData->currentStep = 0;
-        indexData->totalSteps = abs(shared->indexDeltaSteps);
-        // Set to 0 so the HMI knows we have set the new destination
-        shared->indexDeltaSteps = 0;
-
-        // Handle the initialization of the motion when step is 0
-        indexData->floatAccelInterval = shared->acceleration;
-        shared->currentSpeed = shared->minSpeed;
-        indexData->stepRatio =
-                (float )shared->stepRatioNum /
-                (float )shared->stepRatioDen;
-        indexData->decelSteps = 0;
-    }
-
-    // If we're not running, run the interrupt at slow speed and wait for running requests
-    if (shared->indexDeltaSteps == 0 && indexData->currentStep == indexData->totalSteps)
-    {
-        __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, 10000);
-        __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
-        return;
-    }
-
-    // Handle acceleration phase
-    if (shared->currentSpeed < shared->maxSpeed && (indexData->currentStep < indexData->totalSteps / 2) ) {
-        shared->currentSpeed = shared->currentSpeed + shared->acceleration;
-        indexData->floatAccelInterval = (float)RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
-
-        if (shared->currentSpeed > shared->maxSpeed) {
-            shared->currentSpeed = shared->maxSpeed;
-        }
-    } else if (indexData->decelSteps == 0) {
-        // Store the count of steps it took to accelerate, so it can be used to define when to start
-        // decelerating without doing further calculations.
-        indexData->decelSteps = indexData->currentStep;
-    }
-
-    // Handle deceleration phase
-    if (
-            shared->currentSpeed > shared->minSpeed &&
-            (indexData->currentStep > indexData->totalSteps / 2) &&
-            (indexData->currentStep > (indexData->totalSteps - indexData->decelSteps))
-            ) {
-        shared->currentSpeed = shared->currentSpeed - (float) shared->acceleration;
-        indexData->floatAccelInterval = (float)RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
-    }
-
-    // Configure the timer preload and the pwm duty cycle to 50%
-    if (indexData->floatAccelInterval > 65535) {
-        __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, 65535);
-        __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
+  // Check for start conditions, if start conditions then load the parameters
+  if (shared->indexDeltaSteps != 0 && indexData->currentStep == indexData->totalSteps) {
+    if (shared->indexDeltaSteps > 0) {
+      indexData->direction = 1;
     } else {
-        __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, (uint16_t)indexData->floatAccelInterval);
-        __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
+      indexData->direction = -1;
     }
 
-    // Increment the current step
-    indexData->currentStep++;
-    shared->finalPosition += indexData->direction;
+    indexData->currentStep = 0;
+    indexData->totalSteps = abs(shared->indexDeltaSteps);
+    // Set to 0 so the HMI knows we have set the new destination
+    shared->indexDeltaSteps = 0;
 
-//    if (shared->currentPosition < shared->finalPosition) {
-//        shared->currentPosition = shared->currentPosition + 1;
-//    }
-//    if (shared->currentPosition > shared->finalPosition) {
-//        shared->currentPosition = shared->currentPosition - 1;
-//    }
+    // Handle the initialization of the motion when step is 0
+    indexData->floatAccelInterval = shared->acceleration;
+    shared->currentSpeed = shared->minSpeed;
+    indexData->stepRatio =
+    (float) shared->stepRatioNum /
+    (float) shared->stepRatioDen;
+    indexData->decelSteps = 0;
+  }
+
+  // If we're not indexing, run the interrupt at slow speed and wait for running requests
+  if (shared->indexDeltaSteps == 0 && indexData->currentStep == indexData->totalSteps) {
+    __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, 10000);
+    __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
+    return;
+  }
+
+  // Handle acceleration phase
+  if (shared->currentSpeed < shared->maxSpeed && (indexData->currentStep < indexData->totalSteps / 2)) {
+    shared->currentSpeed = shared->currentSpeed + shared->acceleration;
+    indexData->floatAccelInterval = (float) RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
+
+    if (shared->currentSpeed > shared->maxSpeed) {
+      shared->currentSpeed = shared->maxSpeed;
+    }
+  } else if (indexData->decelSteps == 0) {
+    // Store the count of steps it took to accelerate, so it can be used to define when to start
+    // decelerating without doing further calculations.
+    indexData->decelSteps = indexData->currentStep;
+  }
+
+  // Handle deceleration phase
+  if (
+  shared->currentSpeed > shared->minSpeed &&
+  (indexData->currentStep > indexData->totalSteps / 2) &&
+  (indexData->currentStep > (indexData->totalSteps - indexData->decelSteps))
+  ) {
+    shared->currentSpeed = shared->currentSpeed - (float) shared->acceleration;
+    indexData->floatAccelInterval = (float) RAMPS_CLOCK_FREQUENCY * indexData->stepRatio / shared->currentSpeed;
+  }
+
+  // Configure the timer preload and the pwm duty cycle to 50%
+  if (indexData->floatAccelInterval > 65535) {
+    __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, 65535);
+    __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
+  } else {
+    __HAL_TIM_SET_AUTORELOAD(data->indexRefreshTimer, (uint16_t) indexData->floatAccelInterval);
+    __HAL_TIM_SET_COMPARE(data->indexRefreshTimer, TIM_CHANNEL_1, 10);
+  }
+
+  // Increment the current step
+  indexData->currentStep++;
+  shared->finalPosition += indexData->direction;
 }
 
 
@@ -318,33 +224,28 @@ void IndexMotionIsr(rampsHandler_t * data) {
  * Starting timer interval frequency set to 50Khz
  * @param data Reference to the ramps handler data structure
  */
-void SyncMotionIsr(rampsHandler_t * data) {
+void SyncMotionIsr(rampsHandler_t *data) {
   // Skip running the routine if the interrupt didn't trigger for our timer
-	if (data->synchroRefreshTimer->Instance->SR && 0b1 == 0) {
-		return;
-	}
+  if ((data->synchroRefreshTimer->Instance->SR & 0b1) == 0) {
+    return;
+  }
 
-
-  rampsSharedData_t * shared = &(data->shared);
-  rampsSyncData_t * sync_data = &(data->syncData);
-
+  rampsSharedData_t *shared = &(data->shared);
+  rampsSyncData_t *sync_data = &(data->syncData);
   updateScales(&data->scales);
 
-  bool motor_pwm_running = (data->synchroRefreshTimer->Instance->CR1 && 1 == 1);
-
   if (shared->mode == MODE_SYNCHRO && shared->finalPosition != shared->currentPosition) {
-	  if (shared->finalPosition > shared->currentPosition) {
-        HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
-	  } else {
-		HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
-	  }
+    if (shared->finalPosition > shared->currentPosition) {
+      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
+    } else {
+      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
+    }
 
-	  if (data->synchroRefreshTimer->Instance->CR1 && 1 == 1)
-      {
-	    HAL_TIM_PWM_Start_IT(data->motorPwmTimer, TIM_CHANNEL_1);
-      }
+    if ((data->synchroRefreshTimer->Instance->CR1 & 1) == 1) {
+      HAL_TIM_PWM_Start_IT(data->motorPwmTimer, TIM_CHANNEL_1);
+    }
 
-	  return;
+    return;
   }
 
   // Skip Conditions
@@ -356,11 +257,10 @@ void SyncMotionIsr(rampsHandler_t * data) {
   sync_data->positionPrevious = sync_data->positionCurrent;
   sync_data->positionCurrent = data->scales.scalePosition[shared->synScaleIndex].positionCurrent;
 
-  if (sync_data->positionPrevious < sync_data->positionCurrent)
-  {
+  if (sync_data->positionPrevious < sync_data->positionCurrent) {
     HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
     sync_data->direction = +1;
-    for (int32_t x = sync_data->positionPrevious; x < sync_data->positionCurrent;++x) {
+    for (int32_t x = sync_data->positionPrevious; x < sync_data->positionCurrent; ++x) {
       if (sync_data->D > 0) {
         // Error greater than 0, step forward the controlled axis
         shared->finalPosition += sync_data->yi;
@@ -369,10 +269,7 @@ void SyncMotionIsr(rampsHandler_t * data) {
         sync_data->D = sync_data->D + 2 * shared->synRatioDen;
       }
     }
-  }
-
-  else if (sync_data->positionPrevious > sync_data->positionCurrent)
-  {
+  } else if (sync_data->positionPrevious > sync_data->positionCurrent) {
     HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
     sync_data->direction = -1;
     for (int32_t x = sync_data->positionPrevious; x > sync_data->positionCurrent; --x) {
@@ -391,8 +288,7 @@ void SyncMotionIsr(rampsHandler_t * data) {
  * This method is used to initialize the RTOS task responsible for controlling the ramps
  * ramp generator.
  */
-void StartRampsTask(rampsHandler_t * rampsData)
-{
+void StartRampsTask(rampsHandler_t *rampsData) {
   rampsData->TaskRampsHandle = osThreadNew(RampsTask, rampsData, &taskRampsAttributes);
 }
 
@@ -401,16 +297,12 @@ void StartRampsTask(rampsHandler_t * rampsData)
  * for the management of all the ramps system operation.
  * @param argument Reference to the ramps handler data structure
  */
-void RampsTask(void *argument)
-{
-  rampsHandler_t * data = (rampsHandler_t *)argument;
-  rampsSharedData_t * shared = &data->shared;
-  rampsIndexData_t * indexData = &data->indexData;
-  rampsSyncData_t * syncData = &data->syncData;
+void RampsTask(void *argument) {
+  rampsHandler_t *data = (rampsHandler_t *) argument;
+  rampsSharedData_t *shared = &data->shared;
 
   uint16_t ledTicks = 0;
-  for(;;)
-  {
+  for (;;) {
     osDelay(50);
     // Refresh scales position reporting in the modbus shared data
     for (int i = 0; i < SCALES_COUNT; ++i) {
@@ -437,35 +329,6 @@ void RampsTask(void *argument)
       // Shared data struct reset
       shared->scalesPosition[scaleIndex] = shared->encoderPresetValue;
       shared->mode = MODE_HALT; // Set proper mode
-    }
-
-    // Handle index mode request
-    if (shared->mode == MODE_INDEX_INIT) {
-      // Provided final destination is the same as current, go back to halt
-      if (shared->finalPosition == shared->currentPosition) {
-        shared->mode = MODE_HALT;
-      }
-
-      // Set Direction based on destination
-      if (shared->finalPosition > shared->currentPosition) {
-        HAL_GPIO_WritePin(data->directionPinPort, data->directionPin, 1);
-      } else {
-        HAL_GPIO_WritePin(data->directionPinPort, data->directionPin, 0);
-      }
-
-      // Set mode
-      // Reset counters used for ramps generation, will have to improve this
-      shared->mode = MODE_INDEX;
-      indexData->currentStep = 0;
-      indexData->totalSteps = abs(shared->finalPosition - shared->currentPosition);
-
-      // Start the timer responsible for the ramps generation
-      HAL_TIM_PWM_Start_IT(data->motorPwmTimer, TIM_CHANNEL_1);
-    }
-
-    if (shared->mode == MODE_INDEX && shared->finalPosition == shared->currentPosition) {
-      shared->mode = MODE_HALT;
-      HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
     }
   }
 }
