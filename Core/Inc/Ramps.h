@@ -113,9 +113,9 @@ typedef struct {
 } rampsHandler_t;
 
 void RampsStart(rampsHandler_t * rampsData);
-void RampsMotionIsr(rampsHandler_t * data);
-void IndexMotionIsr(rampsHandler_t * data);
-void SyncMotionIsr(rampsHandler_t * data);
+void MotorPwmTimerISR(rampsHandler_t * data);
+void IndexRefreshTimerISR(rampsHandler_t * data);
+void SynchroRefreshTimerIsr(rampsHandler_t * data);
 void SyncMotionInit(rampsHandler_t * data);
 void StartRampsTask(rampsHandler_t * rampsData);
 void RampsTask(void *argument);

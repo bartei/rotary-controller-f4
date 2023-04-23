@@ -78,23 +78,6 @@ void RampsStart(rampsHandler_t *rampsData) {
   StartRampsTask(rampsData);
 }
 
-/**
- * This method implements the logic to generate a single pulse when the controlled axis is
- * configured in synchro mode.
- * When operating in this mode the timer is stopped immediately after reaching the
- * requested number of steps
- * @param data Reference to the ramps handler data structure
- */
-void motorSynchroModeIsr(rampsHandler_t *data) {
-  if (HAL_GPIO_ReadPin(DIR_GPIO_PORT, DIR_PIN) == GPIO_PIN_SET) {
-    data->shared.currentPosition++;
-  } else {
-    data->shared.currentPosition--;
-  }
-
-  HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
-}
-
 
 /**
  * Call this method from the interrupt service routine associated with the pwm generation timer
@@ -102,10 +85,15 @@ void motorSynchroModeIsr(rampsHandler_t *data) {
  * @param rampsTimer handle reference to the ramps generation time, the same as the calling isr
  * @param data the data structure holding all the rotary controller data
  */
-void RampsMotionIsr(rampsHandler_t *data) {
+void MotorPwmTimerISR(rampsHandler_t *data) {
   // Controller is in index mode
   if (data->shared.mode == MODE_SYNCHRO) {
-    motorSynchroModeIsr(data);
+      if (HAL_GPIO_ReadPin(DIR_GPIO_PORT, DIR_PIN) == GPIO_PIN_SET) {
+        data->shared.currentPosition++;
+      } else {
+        data->shared.currentPosition--;
+      }
+      HAL_TIM_PWM_Stop_IT(data->motorPwmTimer, TIM_CHANNEL_1);
   }
 }
 
@@ -119,7 +107,7 @@ void SyncMotionInit(rampsHandler_t *data) {
   // Verify the ratio to be acceptable, return and set error otherwise
   if (shared->synRatioNum == 0 ||
       shared->synRatioDen == 0 ||
-      shared->synRatioDen > shared->synRatioNum) {
+      abs(shared->synRatioDen) > abs(shared->synRatioNum)) {
     shared->mode = MODE_SYNCHRO_BAD_RATIO;
     return;
   }
@@ -144,7 +132,13 @@ void SyncMotionInit(rampsHandler_t *data) {
  * during synchro mode
  * @param data
  */
-void IndexMotionIsr(rampsHandler_t *data) {
+void IndexRefreshTimerISR(rampsHandler_t *data) {
+  // Skip if the interrupt was not for this timer
+  if (__HAL_TIM_GET_FLAG(data->indexRefreshTimer, TIM_FLAG_UPDATE) != RESET)
+  {
+      return;
+  }
+
   // Stop the timer and exit if mode is 0
   rampsSharedData_t *shared = &data->shared;
   rampsIndexData_t *indexData = &data->indexData;
@@ -224,11 +218,12 @@ void IndexMotionIsr(rampsHandler_t *data) {
  * Starting timer interval frequency set to 50Khz
  * @param data Reference to the ramps handler data structure
  */
-void SyncMotionIsr(rampsHandler_t *data) {
+void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   // Skip running the routine if the interrupt didn't trigger for our timer
-  if ((data->synchroRefreshTimer->Instance->SR & 0b1) == 0) {
-    return;
-  }
+//  if (__HAL_TIM_GET_FLAG(data->synchroRefreshTimer, TIM_FLAG_UPDATE) == RESET)
+//  {
+//      return;
+//  }
 
   rampsSharedData_t *shared = &(data->shared);
   rampsSyncData_t *sync_data = &(data->syncData);
