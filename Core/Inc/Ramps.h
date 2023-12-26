@@ -44,61 +44,58 @@ typedef enum
 } ramps_mode_t ;
 
 typedef struct {
+    TIM_HandleTypeDef * timerHandle;
+    int32_t encoderPrevious;
+    int32_t encoderCurrent;
+    int32_t ratioNum;
+    int32_t ratioDen;
+    int32_t maxValue;
+    int32_t minValue;
+    int32_t position;
+    int32_t error;
+} input_t;
+
+typedef struct {
+    float minSpeed, maxSpeed, currentSpeed, acceleration;
+    float absoluteOffset;
+    float indexOffset;
+    int32_t inputOffset;
+    float desiredPosition;
+    float currentPosition;
+    int32_t currentSteps;
+    int32_t desiredSteps;
+    int32_t ratioNum;
+    int32_t ratioDen;
+    int32_t maxValue;
+    int32_t minValue;
+    int32_t position;
+    int32_t error;
+} servo_t;
+
+typedef struct {
+    int32_t divisions;
+    int32_t curIndex;
+    int32_t reqIndex;
+} index_t;
+
+typedef struct {
     ramps_mode_t mode; // 0
-    int32_t currentPosition; // 2
-    int32_t finalPosition; // 4
-    int16_t indexDeltaSteps; // 6 -> Defines how many steps forwards/backwards for stepping in synchro mode
-    int32_t unused_8;
     uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
     int32_t unused_14;
-    float maxSpeed;
-    float minSpeed;
-    float currentSpeed;
-    float acceleration;
-    int32_t stepRatioNum;
-    int32_t stepRatioDen;
-    float unused_28;
-    int32_t synRatioNum;
-    int32_t synRatioDen;
-    int32_t synOffset;
-    uint16_t synScaleIndex;
-    int32_t scalesPosition[SCALES_COUNT];
+    index_t index;
+    servo_t servo;
+    input_t scales[SCALES_COUNT];
 } rampsSharedData_t;
 
-// This following structure is used only internally and it's not shared with the modbus data
-// The values stored here are used by the adapted bresenham algorithm used to interpolate the
-// Y axis with the X axis, where X is the encoder position returned by the master axis and the
-// y is the controlled motion axis.
-typedef struct {
-    int32_t positionPrevious, positionCurrent;
-    int32_t yi;
-    int32_t D;
-    int8_t direction;
-} rampsSyncData_t;
-
-typedef struct {
-    float floatAccelInterval;
-    float stepRatio;
-    int32_t currentStep;
-    int32_t totalSteps;
-    int32_t decelSteps;
-    int32_t direction;
-} rampsIndexData_t;
 
 typedef struct {
     // Modbus shared data
     rampsSharedData_t shared;
-    rampsSyncData_t syncData;
-    rampsIndexData_t indexData;
-
-    // Scales Data
-    scales_t scales;
 
     // STM32 Related
     TIM_HandleTypeDef * motorPwmTimer;
     TIM_HandleTypeDef * synchroRefreshTimer;
-    TIM_HandleTypeDef * indexRefreshTimer;
 
     UART_HandleTypeDef * modbusUart;
 

@@ -190,7 +190,6 @@ void TIM1_UP_TIM10_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim1);
   HAL_TIM_IRQHandler(&htim10);
   /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 1 */
-    IndexRefreshTimerISR(&RampsData);
   /* USER CODE END TIM1_UP_TIM10_IRQn 1 */
 }
 

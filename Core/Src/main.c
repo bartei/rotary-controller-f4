@@ -107,13 +107,12 @@ int main(void)
 
   RampsData.directionPin = DIR_PIN;
   RampsData.directionPinPort = DIR_GPIO_PORT;
-  RampsData.scales.scaleTimer[0] = &htim1;
-  RampsData.scales.scaleTimer[1] = &htim2;
-  RampsData.scales.scaleTimer[2] = &htim3;
-  RampsData.scales.scaleTimer[3] = &htim4;
+  RampsData.shared.scales[0].timerHandle = &htim1;
+  RampsData.shared.scales[1].timerHandle = &htim2;
+  RampsData.shared.scales[2].timerHandle = &htim3;
+  RampsData.shared.scales[3].timerHandle = &htim4;
   RampsData.motorPwmTimer = &htim5;
   RampsData.synchroRefreshTimer = &htim9;
-  RampsData.indexRefreshTimer = &htim10;
   RampsData.modbusUart = &huart1;
   RampsStart(&RampsData);
 
