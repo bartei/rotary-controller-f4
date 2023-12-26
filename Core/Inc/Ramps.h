@@ -53,6 +53,8 @@ typedef struct {
     int32_t minValue;
     int32_t position;
     int32_t error;
+    int32_t syncRatioNum, syncRatioDen;
+    bool syncMotion;
 } input_t;
 
 typedef struct {
@@ -62,7 +64,7 @@ typedef struct {
     float acceleration;
     float absoluteOffset;
     float indexOffset;
-    int32_t inputOffset;
+    float syncOffset;
     float desiredPosition;
     float currentPosition;
     int32_t currentSteps;
@@ -81,6 +83,7 @@ typedef struct {
 typedef struct {
     int32_t divisions;
     int32_t index;
+    int32_t oldIndex;
 } index_t;
 
 typedef struct {

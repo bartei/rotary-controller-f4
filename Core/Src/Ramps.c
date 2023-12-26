@@ -131,7 +131,9 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->execution_interval_previous = shared->execution_interval_current;
   shared->execution_interval_current = DWT->CYCCNT;
   shared->execution_interval = shared->execution_interval_current - shared->execution_interval_previous;
-  double interval = 1.0 / (float)shared->execution_interval;
+  float interval = 1.0f / (float)shared->execution_interval;
+
+  float syncPositionAccumulator = 0;
 
   // Update the scales
   for (int i = 0; i < SCALES_COUNT; i++) {
@@ -156,12 +158,20 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       shared->scales[i].error += shared->scales[i].ratioDen;
     }
 
+    if (shared->scales[i].syncMotion) {
+      syncPositionAccumulator += (float)shared->scales[i].position
+        * (float)shared->scales[i].syncRatioNum
+        / (float)shared->scales[i].syncRatioDen;
+    }
+
   }
 
-  // start indexing
+  shared->servo.syncOffset = syncPositionAccumulator;
+
+  // Indexing position calculation
   shared->servo.indexOffset = shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
 
-  shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset;
+  shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset + shared->servo.syncOffset;
 
   float distanceToGo = fabsf(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed - shared->servo.minSpeed) / shared->servo.acceleration;
