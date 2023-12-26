@@ -45,8 +45,8 @@ typedef enum
 
 typedef struct {
     TIM_HandleTypeDef * timerHandle;
-    int32_t encoderPrevious;
-    int32_t encoderCurrent;
+    uint16_t encoderPrevious;
+    uint16_t encoderCurrent;
     int32_t ratioNum;
     int32_t ratioDen;
     int32_t maxValue;
@@ -56,7 +56,10 @@ typedef struct {
 } input_t;
 
 typedef struct {
-    float minSpeed, maxSpeed, currentSpeed, acceleration;
+    float minSpeed;
+    float maxSpeed;
+    float currentSpeed;
+    float acceleration;
     float absoluteOffset;
     float indexOffset;
     int32_t inputOffset;
@@ -68,21 +71,26 @@ typedef struct {
     int32_t ratioDen;
     int32_t maxValue;
     int32_t minValue;
-    int32_t position;
-    int32_t error;
+    float breakingSpace, breakingTime;
+    float allowedError;
+
+//    int32_t position;
+//    int32_t error;
 } servo_t;
 
 typedef struct {
     int32_t divisions;
-    int32_t curIndex;
-    int32_t reqIndex;
+    int32_t index;
 } index_t;
 
 typedef struct {
     ramps_mode_t mode; // 0
     uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
-    int32_t unused_14;
+    uint32_t execution_interval;
+    uint32_t execution_interval_previous;
+    uint32_t execution_interval_current;
+    uint32_t execution_cycles;
     index_t index;
     servo_t servo;
     input_t scales[SCALES_COUNT];
