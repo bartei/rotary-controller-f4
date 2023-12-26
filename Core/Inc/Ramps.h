@@ -31,17 +31,6 @@
 #define ENA_PIN GPIO_PIN_15
 #define ENA_GPIO_PORT GPIOB
 
-typedef enum
-{
-    MODE_HALT = 0,
-    MODE_SYNCHRO = 20,
-    MODE_SYNCHRO_INIT = 21,
-    MODE_JOG = 30,
-    MODE_JOG_FW = 31,
-    MODE_JOG_BW = 32,
-    MODE_SET_ENCODER = 40,
-    MODE_SYNCHRO_BAD_RATIO = 101,
-} ramps_mode_t ;
 
 typedef struct {
     TIM_HandleTypeDef * timerHandle;
@@ -75,19 +64,14 @@ typedef struct {
     int32_t minValue;
     float breakingSpace, breakingTime;
     float allowedError;
-
-//    int32_t position;
-//    int32_t error;
 } servo_t;
 
 typedef struct {
     int32_t divisions;
     int32_t index;
-    int32_t oldIndex;
 } index_t;
 
 typedef struct {
-    ramps_mode_t mode; // 0
     uint16_t encoderPresetIndex;
     int32_t encoderPresetValue;
     uint32_t execution_interval;

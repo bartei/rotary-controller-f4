@@ -169,9 +169,9 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->servo.syncOffset = syncPositionAccumulator;
 
   // Indexing position calculation
-  shared->servo.indexOffset = shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
-
+  shared->servo.indexOffset = (float)shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
   shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset + shared->servo.syncOffset;
+  shared->servo.allowedError = (float)shared->servo.ratioNum/(float)shared->servo.ratioDen;
 
   float distanceToGo = fabsf(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed - shared->servo.minSpeed) / shared->servo.acceleration;
