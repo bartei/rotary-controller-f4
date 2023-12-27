@@ -219,7 +219,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
   }
 
-  // Update current position
+  // Update current position - This has the side effect of going super fast mode with sync motion, might be desired
+  // TODO: Needs more investigation
   shared->servo.currentPosition += shared->servo.currentSpeed * interval;
   if (fabsf(shared->servo.currentPosition - shared->servo.desiredPosition) < shared->servo.allowedError) {
     shared->servo.currentPosition = shared->servo.desiredPosition;

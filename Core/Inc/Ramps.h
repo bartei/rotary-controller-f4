@@ -72,8 +72,6 @@ typedef struct {
 } index_t;
 
 typedef struct {
-    uint16_t encoderPresetIndex;
-    int32_t encoderPresetValue;
     uint32_t execution_interval;
     uint32_t execution_interval_previous;
     uint32_t execution_interval_current;
@@ -106,9 +104,7 @@ typedef struct {
 
 void RampsStart(rampsHandler_t * rampsData);
 void MotorPwmTimerISR(rampsHandler_t * data);
-void IndexRefreshTimerISR(rampsHandler_t * data);
 void SynchroRefreshTimerIsr(rampsHandler_t * data);
-void SyncMotionInit(rampsHandler_t * data);
 void StartRampsTask(rampsHandler_t * rampsData);
 void RampsTask(void *argument);
 
