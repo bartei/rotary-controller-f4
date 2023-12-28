@@ -101,21 +101,20 @@ int main(void)
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
   // htim5 is used for shared pwm generation
-  // htim9 is used to generate the interrupts for the ramps sync motion
+  // htim9 is used to generate the synchro motion
+  // htim10 is used to generate the ramps for indexing
 
   RampsData.directionPin = DIR_PIN;
   RampsData.directionPinPort = DIR_GPIO_PORT;
-  RampsData.scales.scaleTimer[0] = &htim1;
-  RampsData.scales.scaleTimer[1] = &htim2;
-  RampsData.scales.scaleTimer[2] = &htim3;
-  RampsData.scales.scaleTimer[3] = &htim4;
-  RampsData.motorTimer = &htim5;
-  RampsData.synTimer = &htim9;
+  RampsData.shared.scales[0].timerHandle = &htim1;
+  RampsData.shared.scales[1].timerHandle = &htim2;
+  RampsData.shared.scales[2].timerHandle = &htim3;
+  RampsData.shared.scales[3].timerHandle = &htim4;
+  RampsData.motorPwmTimer = &htim5;
+  RampsData.synchroRefreshTimer = &htim9;
   RampsData.modbusUart = &huart1;
-
   RampsStart(&RampsData);
 
-  DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
   /* USER CODE END 2 */
 
   /* Init scheduler */
