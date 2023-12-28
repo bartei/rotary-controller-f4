@@ -25,7 +25,6 @@
 #include "Scales.h"
 
 #define MODBUS_ADDRESS 17
-#define RAMPS_CLOCK_FREQUENCY 1000000
 #define DIR_PIN GPIO_PIN_14
 #define DIR_GPIO_PORT GPIOB
 #define ENA_PIN GPIO_PIN_15
@@ -33,79 +32,91 @@
 
 
 typedef struct {
-    TIM_HandleTypeDef * timerHandle;
-    uint16_t encoderPrevious;
-    uint16_t encoderCurrent;
-    int32_t ratioNum;
-    int32_t ratioDen;
-    int32_t maxValue;
-    int32_t minValue;
-    int32_t position;
-    int32_t error;
-    int32_t syncRatioNum, syncRatioDen;
-    bool syncMotion;
+  TIM_HandleTypeDef *timerHandle;
+  uint16_t encoderPrevious;
+  uint16_t encoderCurrent;
+  int32_t ratioNum;
+  int32_t ratioDen;
+  int32_t maxValue;
+  int32_t minValue;
+  int32_t position;
+  int32_t error;
+  int32_t syncRatioNum, syncRatioDen;
+  bool syncMotion;
 } input_t;
 
 typedef struct {
-    float minSpeed;
-    float maxSpeed;
-    float currentSpeed;
-    float acceleration;
-    float absoluteOffset;
-    float indexOffset;
-    float syncOffset;
-    float desiredPosition;
-    float currentPosition;
-    int32_t currentSteps;
-    int32_t desiredSteps;
-    int32_t ratioNum;
-    int32_t ratioDen;
-    int32_t maxValue;
-    int32_t minValue;
-    float breakingSpace, breakingTime;
-    float allowedError;
+  float minSpeed;
+  float maxSpeed;
+  float currentSpeed;
+  float acceleration;
+  float absoluteOffset;
+  float indexOffset;
+  float syncOffset;
+  float desiredPosition;
+  float currentPosition;
+  int32_t currentSteps;
+  int32_t desiredSteps;
+  int32_t ratioNum;
+  int32_t ratioDen;
+  int32_t maxValue;
+  int32_t minValue;
+  float breakingSpace, breakingTime;
+  float allowedError;
 } servo_t;
 
 typedef struct {
-    int32_t divisions;
-    int32_t index;
+  int32_t divisions;
+  int32_t index;
 } index_t;
 
 typedef struct {
-    uint32_t execution_interval;
-    uint32_t execution_interval_previous;
-    uint32_t execution_interval_current;
-    uint32_t execution_cycles;
-    index_t index;
-    servo_t servo;
-    input_t scales[SCALES_COUNT];
+  float servoCurrent;
+  float servoDesired;
+  int32_t scaleCurrent[SCALES_COUNT];
+  uint32_t cycles;
+} fastData_t;
+
+typedef struct {
+  uint32_t execution_interval;
+  uint32_t execution_interval_previous;
+  uint32_t execution_interval_current;
+  uint32_t execution_cycles;
+  index_t index;
+  servo_t servo;
+  input_t scales[SCALES_COUNT];
+  fastData_t fastData;
 } rampsSharedData_t;
 
 
 typedef struct {
-    // Modbus shared data
-    rampsSharedData_t shared;
+  // Modbus shared data
+  rampsSharedData_t shared;
 
-    // STM32 Related
-    TIM_HandleTypeDef * motorPwmTimer;
-    TIM_HandleTypeDef * synchroRefreshTimer;
+  // STM32 Related
+  TIM_HandleTypeDef *motorPwmTimer;
+  TIM_HandleTypeDef *synchroRefreshTimer;
 
-    UART_HandleTypeDef * modbusUart;
+  UART_HandleTypeDef *modbusUart;
 
-    GPIO_TypeDef * directionPinPort;
-    uint16_t directionPin;
+  GPIO_TypeDef *directionPinPort;
+  uint16_t directionPin;
 
-    GPIO_TypeDef * enablePinPort;
-    uint16_t enablePin;
+  GPIO_TypeDef *enablePinPort;
+  uint16_t enablePin;
 
-    // FreeRTOS related
-    osThreadId_t TaskRampsHandle;
+  // FreeRTOS related
+  osThreadId_t TaskRampsHandle;
 } rampsHandler_t;
 
-void RampsStart(rampsHandler_t * rampsData);
-void MotorPwmTimerISR(rampsHandler_t * data);
-void SynchroRefreshTimerIsr(rampsHandler_t * data);
-void StartRampsTask(rampsHandler_t * rampsData);
+void RampsStart(rampsHandler_t *rampsData);
+
+void MotorPwmTimerISR(rampsHandler_t *data);
+
+void SynchroRefreshTimerIsr(rampsHandler_t *data);
+
+void StartRampsTask(rampsHandler_t *rampsData);
+
 void RampsTask(void *argument);
 
 #endif

@@ -163,7 +163,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
         * (float)shared->scales[i].syncRatioNum
         / (float)shared->scales[i].syncRatioDen;
     }
-
   }
 
   shared->servo.syncOffset = syncPositionAccumulator;
@@ -216,7 +215,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     else if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
       shared->servo.currentSpeed += shared->servo.acceleration * interval;
     }
-
   }
 
   // Update current position - This has the side effect of going super fast mode with sync motion, might be desired
@@ -224,6 +222,15 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->servo.currentPosition += shared->servo.currentSpeed * interval;
   if (fabsf(shared->servo.currentPosition - shared->servo.desiredPosition) < shared->servo.allowedError) {
     shared->servo.currentPosition = shared->servo.desiredPosition;
+  }
+
+
+  // Update fast access variables for display refresh
+  shared->fastData.cycles = shared->execution_cycles;
+  shared->fastData.servoCurrent = shared->servo.currentPosition;
+  shared->fastData.servoDesired = shared->servo.desiredPosition;
+  for (char i = 0; i < SCALES_COUNT; i++) {
+    shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
   shared->servo.desiredSteps = (int32_t) (shared->servo.currentPosition
