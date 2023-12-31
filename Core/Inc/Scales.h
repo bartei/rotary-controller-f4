@@ -8,5 +8,5 @@
 
 #define SCALES_COUNT 4
 
-void initScaleTimer(TIM_HandleTypeDef * timHandle);
+HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle);
 #endif //ROTARY_CONTROLLER_F4_SCALES_H

@@ -3,7 +3,7 @@
 //
 #include "Scales.h"
 
-void initScaleTimer(TIM_HandleTypeDef * timHandle)
+HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle)
 {
   TIM_Encoder_InitTypeDef sConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
@@ -26,5 +26,15 @@ void initScaleTimer(TIM_HandleTypeDef * timHandle)
 
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_ENABLE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-}
 
+  HAL_StatusTypeDef result = HAL_TIM_Encoder_Init(timHandle, &sConfig);
+  if (result != HAL_OK) {
+    return result;
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+
+  result = HAL_TIMEx_MasterConfigSynchronization(timHandle, &sMasterConfig);
+  return result;
+}
