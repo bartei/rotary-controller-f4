@@ -115,8 +115,4 @@ void MotorPwmTimerISR(rampsHandler_t *data);
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data);
 
-void StartRampsTask(rampsHandler_t *rampsData);
-
-void RampsTask(void *argument);
-
 #endif

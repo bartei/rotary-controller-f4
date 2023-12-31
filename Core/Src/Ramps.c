@@ -15,17 +15,10 @@
  * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <stdlib.h>
 #include <math.h>
 #include "Ramps.h"
 #include "Scales.h"
 
-
-const osThreadAttr_t taskRampsAttributes = {
-.name = "taskRamps",
-.stack_size = 128 * 4,
-.priority = (osPriority_t) osPriorityNormal,
-};
 
 // This variable is the handler for the modbus communication
 modbusHandler_t RampsModbusData;
@@ -103,8 +96,6 @@ void RampsStart(rampsHandler_t *rampsData) {
   RampsModbusData.xTypeHW = USART_HW;
   ModbusInit(&RampsModbusData);
   ModbusStart(&RampsModbusData);
-
-  StartRampsTask(rampsData);
 }
 
 
@@ -170,7 +161,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   // Indexing position calculation
   shared->servo.indexOffset = (float)shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
   shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset + shared->servo.syncOffset;
-  shared->servo.allowedError = (float)shared->servo.ratioNum/(float)shared->servo.ratioDen;
+  shared->servo.allowedError = (float)shared->servo.ratioNum/(float)shared->servo.ratioDen/2;
 
   float distanceToGo = fabsf(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed - shared->servo.minSpeed) / shared->servo.acceleration;
@@ -224,7 +215,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.currentPosition = shared->servo.desiredPosition;
   }
 
-
   // Update fast access variables for display refresh
   shared->fastData.cycles = shared->execution_cycles;
   shared->fastData.servoCurrent = shared->servo.currentPosition;
@@ -247,49 +237,4 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   }
 
   shared->execution_cycles = DWT->CYCCNT - start;
-}
-
-/**
- * This method is used to initialize the RTOS task responsible for controlling the ramps
- * ramp generator.
- */
-void StartRampsTask(rampsHandler_t *rampsData) {
-  rampsData->TaskRampsHandle = osThreadNew(RampsTask, rampsData, &taskRampsAttributes);
-}
-
-/**
- * This is the FreeRTOS task invoked to handle the general low priority task responsible
- * for the management of all the ramps system operation.
- * @param argument Reference to the ramps handler data structure
- */
-void RampsTask(void *argument) {
-  rampsHandler_t *data = (rampsHandler_t *) argument;
-  rampsSharedData_t *shared = &data->shared;
-
-  uint16_t ledTicks = 0;
-  for (;;) {
-    osDelay(150);
-
-    // Handle sync mode request
-//    if (shared->mode == MODE_SYNCHRO_INIT) {
-//      SyncMotionInit(data);
-//    }
-
-    // Handle request to set encoder count value
-//    if (shared->mode == MODE_SET_ENCODER) {
-//      // Reset everything and configure the provided value
-//      int scaleIndex = data->shared.encoderPresetIndex;
-//      // Counter reset
-//      __HAL_TIM_SET_COUNTER(data->scales.scaleTimer[scaleIndex], 0);
-//      data->scales.scalePosition[scaleIndex].encoderCurrent = 0;
-//      data->scales.scalePosition[scaleIndex].encoderPrevious = 0;
-//
-//      // Sync data struct reset
-//      data->scales.scalePosition[scaleIndex].positionCurrent = shared->encoderPresetValue;
-//
-//      // Shared data struct reset
-//      shared->scales[scaleIndex] = shared->encoderPresetValue;
-//      shared->mode = MODE_HALT; // Set proper mode
-//    }
-  }
 }
