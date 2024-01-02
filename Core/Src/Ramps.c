@@ -74,8 +74,8 @@ void RampsStart(rampsHandler_t *rampsData) {
   }
 
   // Configure the timer settings for the pwm generation, will be used as one pulse
-  __HAL_TIM_SET_AUTORELOAD(rampsData->motorPwmTimer, 100);
-  __HAL_TIM_SET_COMPARE(rampsData->motorPwmTimer, TIM_CHANNEL_1, 50);
+  __HAL_TIM_SET_AUTORELOAD(rampsData->motorPwmTimer, 30);
+  __HAL_TIM_SET_COMPARE(rampsData->motorPwmTimer, TIM_CHANNEL_1, 15);
 
   // Start synchro interrupt
   HAL_TIM_Base_Start_IT(rampsData->synchroRefreshTimer);
@@ -154,6 +154,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
         * (float)shared->scales[i].syncRatioNum
         / (float)shared->scales[i].syncRatioDen;
     }
+    shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
   shared->servo.syncOffset = syncPositionAccumulator;
@@ -165,7 +166,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
   float distanceToGo = fabs(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed - shared->servo.minSpeed) / shared->servo.acceleration;
-  float space = (shared->servo.acceleration * time * time) / 2;
+  float space = (shared->servo.acceleration *  time * time) / 2;
 
   if (shared->servo.desiredPosition > shared->servo.currentPosition) {
     // Start moving if we need to
@@ -186,9 +187,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     else if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
       shared->servo.currentSpeed -= shared->servo.acceleration * interval;
     }
-  }
-
-  if (shared->servo.desiredPosition < shared->servo.currentPosition) {
+  } else if (shared->servo.desiredPosition < shared->servo.currentPosition) {
     if (shared->servo.currentSpeed == 0) {
       shared->servo.currentSpeed = -shared->servo.minSpeed;
     } else if (-shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
@@ -208,9 +207,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     }
   }
 
-  // Update current position - This has the side effect of going super fast mode with sync motion, might be desired
-  // TODO: Needs more investigation
   shared->servo.currentPosition += shared->servo.currentSpeed * interval;
+
   if (fabsf(shared->servo.currentPosition - shared->servo.desiredPosition) < shared->servo.allowedError) {
     shared->servo.currentPosition = shared->servo.desiredPosition;
     shared->servo.currentSpeed = 0;
@@ -220,9 +218,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->fastData.cycles = shared->execution_cycles;
   shared->fastData.servoCurrent = shared->servo.currentPosition;
   shared->fastData.servoDesired = shared->servo.desiredPosition;
-  for (char i = 0; i < SCALES_COUNT; i++) {
-    shared->fastData.scaleCurrent[i] = shared->scales[i].position;
-  }
 
   shared->servo.desiredSteps = (int32_t) (shared->servo.currentPosition
                                           * (float) shared->servo.ratioNum
