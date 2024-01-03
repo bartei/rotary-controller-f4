@@ -47,7 +47,7 @@ void RampsStart(rampsHandler_t *rampsData) {
 
   rampsData->shared.servo.ratioDen = 360;
   rampsData->shared.servo.ratioNum = 400;
-  rampsData->shared.servo.minSpeed = 1;
+  rampsData->shared.servo.minSpeed = 0;
   rampsData->shared.servo.maxSpeed = 720;
   rampsData->shared.servo.acceleration = 120;
   rampsData->shared.servo.maxValue = 360;
@@ -165,13 +165,13 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->servo.allowedError = (float)shared->servo.ratioNum/(float)shared->servo.ratioDen / (float)shared->servo.acceleration / (float)shared->execution_interval;
 
   float distanceToGo = fabs(shared->servo.desiredPosition - shared->servo.currentPosition);
-  float time = (shared->servo.currentSpeed - shared->servo.minSpeed) / shared->servo.acceleration;
+  float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
   float space = (shared->servo.acceleration *  time * time) / 2;
 
   if (shared->servo.desiredPosition > shared->servo.currentPosition) {
     // Start moving if we need to
     if (shared->servo.currentSpeed == 0) {
-      shared->servo.currentSpeed = shared->servo.minSpeed;
+      shared->servo.currentSpeed += shared->servo.acceleration * interval;
     } else if (shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
       shared->servo.currentSpeed += shared->servo.acceleration * interval;
       if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
@@ -189,7 +189,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     }
   } else if (shared->servo.desiredPosition < shared->servo.currentPosition) {
     if (shared->servo.currentSpeed == 0) {
-      shared->servo.currentSpeed = -shared->servo.minSpeed;
+      shared->servo.currentSpeed -= shared->servo.acceleration * interval;
     } else if (-shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
       shared->servo.currentSpeed -= shared->servo.acceleration * interval;
       if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
