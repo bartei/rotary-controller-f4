@@ -1,5 +1,5 @@
 /**
- * Copyright © 2022 <Stefano Bertelli>
+ * Copyright © 2024 <Stefano Bertelli>
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software
  * and associated documentation files (the “Software”), to deal in the Software without restriction,
  * including without limitation the rights to use, copy, modify, merge, publish, distribute,
@@ -23,9 +23,6 @@
 
 // This variable is the handler for the modbus communication
 modbusHandler_t RampsModbusData;
-
-int32_t oldPosition, deltaPosition;
-uint32_t cycles;
 
 osThreadId_t userLedTaskHandler;
 const osThreadAttr_t ledTaskAttributes = {
@@ -186,7 +183,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset + shared->servo.syncOffset;
   shared->servo.allowedError = ((float)shared->servo.ratioDen / (float)shared->servo.ratioNum) * 2;
 
-  float distanceToGo = fabs(shared->servo.desiredPosition - shared->servo.currentPosition);
+  float distanceToGo = fabsf(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
   float space = (shared->servo.acceleration *  time * time) / 2;
 
@@ -279,11 +276,39 @@ void updateSpeedTask(void *argument) {
   int32_t oldPosition = 0;
   uint32_t deltaPosition = 0;
 
+  float oldMaximumSpeed = 0;
+
   for(;;)
   {
+    // Update the current speed
     osDelay(100);
     deltaPosition = abs(oldPosition - (int32_t)rampsData->shared.servo.currentSteps);
     oldPosition = rampsData->shared.servo.currentSteps;
     rampsData->shared.servo.estimatedSpeed = (float)deltaPosition / 0.1f;
+
+    // If maximum speed has been changed, update the motor timer accordingly
+    if (rampsData->shared.servo.maxSpeed != oldMaximumSpeed) {
+      if(rampsData->motorPwmTimer->State == HAL_TIM_STATE_READY) {
+        float newPeriod = (100000000.0f / ((float)rampsData->motorPwmTimer->Init.Prescaler + 1))
+        		/ (rampsData->shared.servo.maxSpeed * (float)rampsData->shared.servo.ratioNum / (float)rampsData->shared.servo.ratioDen);
+
+        // Check limits - keep values within reason!
+        if (newPeriod > (float)UINT32_MAX) {
+          newPeriod = 65535;
+        }
+        if (newPeriod < 40) {
+          newPeriod = 40;
+        }
+
+        uint32_t periodInt = (uint32_t)newPeriod;
+        uint32_t compareInt = periodInt / 2;
+        // Configure the timer settings for the pwm generation, will be used as one pulse
+
+        __HAL_TIM_SET_AUTORELOAD(rampsData->motorPwmTimer, periodInt);
+        __HAL_TIM_SET_COMPARE(rampsData->motorPwmTimer, TIM_CHANNEL_1, compareInt);
+        oldMaximumSpeed = rampsData->shared.servo.maxSpeed;
+      }
+    }
+
   }
 }
