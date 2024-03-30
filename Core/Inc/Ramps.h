@@ -27,9 +27,12 @@
 #define MODBUS_ADDRESS 17
 #define DIR_PIN GPIO_PIN_14
 #define DIR_GPIO_PORT GPIOB
+
 #define ENA_PIN GPIO_PIN_15
 #define ENA_GPIO_PORT GPIOB
 
+#define USR_LED_Pin GPIO_PIN_12
+#define USR_LED_GPIO_Port GPIOB
 
 typedef struct {
   TIM_HandleTypeDef *timerHandle;
@@ -61,7 +64,8 @@ typedef struct {
   int32_t ratioDen;
   int32_t maxValue;
   int32_t minValue;
-  float breakingSpace, breakingTime;
+  float breakingSpace;
+  float estimatedSpeed;
   float allowedError;
 } servo_t;
 
@@ -109,10 +113,15 @@ typedef struct {
   osThreadId_t TaskRampsHandle;
 } rampsHandler_t;
 
+extern modbusHandler_t RampsModbusData;
+
 void RampsStart(rampsHandler_t *rampsData);
 
 void MotorPwmTimerISR(rampsHandler_t *data);
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data);
 
+void updateSpeedTask(void *argument);
+
+void userLedTask(void *argument);
 #endif

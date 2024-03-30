@@ -16,6 +16,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <math.h>
+#include <stdlib.h>
 #include "Ramps.h"
 #include "Scales.h"
 
@@ -23,6 +24,23 @@
 // This variable is the handler for the modbus communication
 modbusHandler_t RampsModbusData;
 
+int32_t oldPosition, deltaPosition;
+uint32_t cycles;
+
+osThreadId_t userLedTaskHandler;
+const osThreadAttr_t ledTaskAttributes = {
+  .name = "UpdateLedTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+
+};
+
+osThreadId_t updateSpeedTaskHandler;
+const osThreadAttr_t speedTaskAttributes = {
+  .name = "updateSpeedTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 
 void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -52,7 +70,7 @@ void RampsStart(rampsHandler_t *rampsData) {
   rampsData->shared.servo.acceleration = 120;
   rampsData->shared.servo.maxValue = 360;
   rampsData->shared.servo.minValue = 0;
-  rampsData->shared.servo.allowedError = 0.01;
+  rampsData->shared.servo.allowedError = 0.01f;
 
   rampsData->shared.scales[0].ratioNum = 1000;
   rampsData->shared.scales[0].ratioDen = 200;
@@ -67,6 +85,10 @@ void RampsStart(rampsHandler_t *rampsData) {
   configureOutputPin(DIR_GPIO_PORT, DIR_PIN);
   configureOutputPin(ENA_GPIO_PORT, ENA_PIN);
 
+  // Configure tasks
+  userLedTaskHandler = osThreadNew(userLedTask, rampsData, &ledTaskAttributes);
+  updateSpeedTaskHandler = osThreadNew(updateSpeedTask, rampsData, &speedTaskAttributes);
+
   // Initialize and start encoder timer
   for (int j = 0; j < SCALES_COUNT; ++j) {
     initScaleTimer(rampsData->shared.scales[j].timerHandle);
@@ -74,8 +96,8 @@ void RampsStart(rampsHandler_t *rampsData) {
   }
 
   // Configure the timer settings for the pwm generation, will be used as one pulse
-  __HAL_TIM_SET_AUTORELOAD(rampsData->motorPwmTimer, 30);
-  __HAL_TIM_SET_COMPARE(rampsData->motorPwmTimer, TIM_CHANNEL_1, 15);
+  __HAL_TIM_SET_AUTORELOAD(rampsData->motorPwmTimer, 20);
+  __HAL_TIM_SET_COMPARE(rampsData->motorPwmTimer, TIM_CHANNEL_1, 10);
 
   // Start synchro interrupt
   HAL_TIM_Base_Start_IT(rampsData->synchroRefreshTimer);
@@ -122,7 +144,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->execution_interval_previous = shared->execution_interval_current;
   shared->execution_interval_current = DWT->CYCCNT;
   shared->execution_interval = shared->execution_interval_current - shared->execution_interval_previous;
-  float interval = 1.0f / (float)shared->execution_interval;
+  float interval = (float)shared->execution_interval / 100000000.0f;
 
   float syncPositionAccumulator = 0;
 
@@ -162,7 +184,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   // Indexing position calculation
   shared->servo.indexOffset = (float)shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
   shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset + shared->servo.syncOffset;
-  shared->servo.allowedError = (float)shared->servo.ratioNum * 40 /(float)shared->servo.ratioDen / (float)shared->servo.acceleration / (float)shared->execution_interval;
+  shared->servo.allowedError = ((float)shared->servo.ratioDen / (float)shared->servo.ratioNum) * 2;
 
   float distanceToGo = fabs(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
@@ -233,4 +255,35 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   }
 
   shared->execution_cycles = DWT->CYCCNT - start;
+}
+
+void userLedTask(void *argument) {
+  uint16_t oldInCnt = 0;
+
+  for(;;)
+  {
+    osDelay(50);
+    if (oldInCnt != RampsModbusData.u16InCnt) {
+      oldInCnt = RampsModbusData.u16InCnt;
+      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
+      osDelay(50);
+      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
+    }
+  }
+
+}
+
+void updateSpeedTask(void *argument) {
+  rampsHandler_t * rampsData = (rampsHandler_t *)argument;
+  int32_t oldPosition = 0;
+  uint32_t deltaPosition = 0;
+
+  for(;;)
+  {
+    osDelay(100);
+    deltaPosition = abs(oldPosition - (int32_t)rampsData->shared.servo.currentSteps);
+    oldPosition = rampsData->shared.servo.currentSteps;
+    rampsData->shared.servo.estimatedSpeed = (float)deltaPosition / 0.1f;
+  }
 }

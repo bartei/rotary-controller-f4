@@ -114,10 +114,18 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
+  uint16_t oldInCnt = 0;
   for(;;)
   {
-    osDelay(500);
+    osDelay(1000);
     HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+//    if (oldInCnt != RampsModbusData.u16InCnt) {
+//      oldInCnt = RampsModbusData.u16InCnt;
+//      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+//      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
+//      osDelay(50);
+//      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
+//    }
   }
   /* USER CODE END StartDefaultTask */
 }
