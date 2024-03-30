@@ -289,7 +289,7 @@ void updateSpeedTask(void *argument) {
     // If maximum speed has been changed, update the motor timer accordingly
     if (rampsData->shared.servo.maxSpeed != oldMaximumSpeed) {
       if(rampsData->motorPwmTimer->State == HAL_TIM_STATE_READY) {
-        float newPeriod = (100000000.0f / ((float)rampsData->motorPwmTimer->Init.Prescaler + 1))
+        float newPeriod = (100000000.0f / ((float)rampsData->motorPwmTimer->Init.Prescaler))
         		/ (rampsData->shared.servo.maxSpeed * (float)rampsData->shared.servo.ratioNum / (float)rampsData->shared.servo.ratioDen);
 
         // Check limits - keep values within reason!
@@ -300,7 +300,7 @@ void updateSpeedTask(void *argument) {
           newPeriod = 40;
         }
 
-        uint32_t periodInt = (uint32_t)newPeriod;
+        uint32_t periodInt = (uint32_t)newPeriod - 10;
         uint32_t compareInt = periodInt / 2;
         // Configure the timer settings for the pwm generation, will be used as one pulse
 
