@@ -16,8 +16,9 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Determine Branch
@@ -58,7 +59,7 @@ jobs:
 
       - name: Create Git Tag
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.name "Github Action"
           git config --local user.email "bartei81@gmail.com"
@@ -67,14 +68,14 @@ jobs:
       - name: Push changes
         uses: ad-m/github-push-action@master
         with:
-          github_token: ${{ secrets.GH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           force: true
           tags: true
 
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: "v${{ env.NEW_VERSION }}"
           generate_release_notes: false
           files: |
