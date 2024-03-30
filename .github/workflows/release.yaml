@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - bookworm
+      - arm64
+
+permissions: write-all
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Determine Branch
+        run: echo "BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+
+      - name: Git Semantic Version
+        uses: PaulHatch/semantic-version@v5.0.3
+        with:
+          major_pattern: "major:"
+          minor_pattern: "feat:"
+        id: version
+
+      - name: Create New Format Version
+        env:
+          PROD_VERSION: "${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}.${{ steps.version.outputs.patch}}"
+          DEV_VERSION: "${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}.${{ steps.version.outputs.patch }}-${{github.ref_name}}.${{ steps.version.outputs.increment }}"
+        run: |
+          echo "${{steps.version.outputs.version}}"
+          if [[ "${{ env.BRANCH }}" == "refs/heads/main" ]]; then
+            echo "NEW_VERSION=${{ env.PROD_VERSION }}" >> $GITHUB_ENV
+          else
+            echo "NEW_VERSION=${{ env.DEV_VERSION }}" >> $GITHUB_ENV
+          fi
+
+      - name: Install packages
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install -yy \
+          coreutils procps make cmake \
+          build-essential gcc-arm-none-eabi \
+          libstdc++-arm-none-eabi-dev libstdc++-arm-none-eabi-newlib \
+          libnewlib-arm-none-eabi
+
+      - name: Build binaries
+        run: |
+          cmake -DCMAKE_BUILD_TYPE:string=Release . && \
+          make clean && make
+
+      - name: Create Git Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config --local user.name "Github Action"
+          git config --local user.email "bartei81@gmail.com"
+          git tag -a v${{ env.NEW_VERSION }} -m "Version v${{ env.NEW_VERSION }}"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.PAT_TOKEN }}
+          force: true
+          tags: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          tag_name: "v${{ env.NEW_VERSION }}"
+          generate_release_notes: false
+          files: |
+            rotary-controller-f4.bin
+            rotary-controller-f4.elf
+            rotary-controller-f4.hex
