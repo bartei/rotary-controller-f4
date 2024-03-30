@@ -25,7 +25,9 @@
 modbusHandler_t RampsModbusData;
 
 bool servoEnabled = false;
-bool syncMotionEnabled = false;
+bool syncMotionEnabled[SCALES_COUNT];
+
+
 
 osThreadId_t userLedTaskHandler;
 const osThreadAttr_t ledTaskAttributes = {
@@ -89,10 +91,12 @@ void RampsStart(rampsHandler_t *rampsData) {
   userLedTaskHandler = osThreadNew(userLedTask, rampsData, &ledTaskAttributes);
   updateSpeedTaskHandler = osThreadNew(updateSpeedTask, rampsData, &speedTaskAttributes);
 
-  // Initialize and start encoder timer
+  // Initialize and start encoder timer, reset the sync flags
   for (int j = 0; j < SCALES_COUNT; ++j) {
     initScaleTimer(rampsData->shared.scales[j].timerHandle);
     HAL_TIM_Encoder_Start(rampsData->shared.scales[j].timerHandle, TIM_CHANNEL_ALL);
+
+    syncMotionEnabled[j] = false;
   }
 
   // Configure the timer settings for the pwm generation, will be used as one pulse
@@ -148,8 +152,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
   float syncPositionAccumulator = 0;
 
-  // Update the scales
-  syncMotionEnabled = false;
   for (int i = 0; i < SCALES_COUNT; i++) {
     shared->scales[i].encoderPrevious = shared->scales[i].encoderCurrent;
     shared->scales[i].encoderCurrent = __HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle);
@@ -172,13 +174,34 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       shared->scales[i].error += shared->scales[i].ratioDen;
     }
 
-    syncMotionEnabled = syncMotionEnabled || shared->scales[i].syncMotion;
+    // Trigger for auto offset update when enabling sync mode on an axis
+    if (!syncMotionEnabled[i] && shared->scales[i].syncMotion) {
+      syncMotionEnabled[i] = true;
+      shared->servo.absoluteOffset -= (float)shared->scales[i].position
+      * (float)shared->scales[i].syncRatioNum
+      / (float)shared->scales[i].syncRatioDen;
+      shared->servo.currentPosition -= (float)shared->scales[i].position
+      * (float)shared->scales[i].syncRatioNum
+      / (float)shared->scales[i].syncRatioDen;
+    }
 
-//    if (shared->scales[i].syncMotion) {
+    // Remove auto offset update when disabling sync mode on an axis
+    if (syncMotionEnabled[i] && !shared->scales[i].syncMotion) {
+      syncMotionEnabled[i] = false;
+      shared->servo.absoluteOffset += (float)shared->scales[i].position
+      * (float)shared->scales[i].syncRatioNum
+      / (float)shared->scales[i].syncRatioDen;
+      shared->servo.currentPosition += (float)shared->scales[i].position
+      * (float)shared->scales[i].syncRatioNum
+      / (float)shared->scales[i].syncRatioDen;
+
+    }
+
+    if (shared->scales[i].syncMotion) {
     syncPositionAccumulator += (float)shared->scales[i].position
       * (float)shared->scales[i].syncRatioNum
       / (float)shared->scales[i].syncRatioDen;
-//    }
+    }
     shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
@@ -240,18 +263,12 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
   // Update fast access variables for display refresh
   shared->fastData.cycles = shared->execution_cycles;
-  shared->fastData.servoCurrent = shared->servo.currentPosition;
-  shared->fastData.servoDesired = shared->servo.desiredPosition;
+  shared->fastData.servoCurrent = shared->servo.currentPosition + shared->servo.syncOffset;
+  shared->fastData.servoDesired = shared->servo.desiredPosition + shared->servo.syncOffset;
 
-  if (syncMotionEnabled) {
   shared->servo.desiredSteps = (int32_t) ((shared->servo.currentPosition + shared->servo.syncOffset)
                                           * (float) shared->servo.ratioNum
                                           / (float) shared->servo.ratioDen);
-  } else {
-  shared->servo.desiredSteps = (int32_t) ((shared->servo.currentPosition)
-                                          * (float) shared->servo.ratioNum
-                                          / (float) shared->servo.ratioDen);
-  }
 
   if (servoEnabled) {
     if (shared->servo.desiredSteps > shared->servo.currentSteps) {
