@@ -194,7 +194,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       shared->servo.currentPosition += (float)shared->scales[i].position
       * (float)shared->scales[i].syncRatioNum
       / (float)shared->scales[i].syncRatioDen;
-
     }
 
     if (shared->scales[i].syncMotion) {
@@ -255,6 +254,23 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.currentPosition += shared->servo.currentSpeed * interval;
   }
 
+  // handle the overflow based on the denominator specified for the axis
+  if (shared->servo.currentPosition >= (float)shared->servo.ratioDen) {
+    shared->servo.currentPosition = shared->servo.currentPosition - (float)shared->servo.ratioDen;
+    shared->servo.desiredPosition = shared->servo.desiredPosition - (float)shared->servo.ratioDen;
+    shared->servo.currentSteps = shared->servo.currentSteps - shared->servo.ratioNum;
+    shared->servo.desiredSteps = shared->servo.desiredSteps - shared->servo.ratioNum;
+  }
+
+  if (shared->servo.currentPosition < 0) {
+    shared->servo.currentPosition = shared->servo.currentPosition + (float)shared->servo.ratioDen;
+    shared->servo.desiredPosition = shared->servo.desiredPosition + (float)shared->servo.ratioDen;
+    shared->servo.currentSteps = shared->servo.currentSteps + shared->servo.ratioNum;
+    shared->servo.desiredSteps = shared->servo.desiredSteps + shared->servo.ratioNum;
+  }
+
+  shared->servo.ratioDen
+
   // Target reached when we are within the allowed error
   if (fabsf(shared->servo.currentPosition - shared->servo.desiredPosition) <= shared->servo.allowedError) {
     shared->servo.currentPosition = shared->servo.desiredPosition;
@@ -270,6 +286,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
                                           * (float) shared->servo.ratioNum
                                           / (float) shared->servo.ratioDen);
 
+
+  // generate pulses to reach desired position with the motor
   if (servoEnabled) {
     if (shared->servo.desiredSteps > shared->servo.currentSteps) {
       HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
