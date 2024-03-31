@@ -194,7 +194,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       shared->servo.currentPosition += (float)shared->scales[i].position
       * (float)shared->scales[i].syncRatioNum
       / (float)shared->scales[i].syncRatioDen;
-
     }
 
     if (shared->scales[i].syncMotion) {
@@ -207,17 +206,60 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
   shared->servo.syncOffset = syncPositionAccumulator;
 
+  // Normalize absolute offset
+  shared->servo.absoluteOffset = fmodf(shared->servo.absoluteOffset, shared->servo.ratioDen);
+  if (shared->servo.absoluteOffset < 0) shared->servo.absoluteOffset += shared->servo.ratioDen;
+
   // Indexing position calculation
   shared->servo.indexOffset = (float)shared->servo.maxValue / (float)shared->index.divisions *  (float) (shared->index.index);
-  shared->servo.desiredPosition = shared->servo.indexOffset + shared->servo.absoluteOffset;
+
+  shared->servo.desiredPosition = fmodf(shared->servo.indexOffset + shared->servo.absoluteOffset, shared->servo.ratioDen);
+  if (shared->servo.desiredPosition < 0) shared->servo.desiredPosition += shared->servo.ratioDen;
+
+
+  while (shared->servo.currentPosition >= (float)shared->servo.ratioDen) {
+    shared->servo.currentPosition = shared->servo.currentPosition - (float)shared->servo.ratioDen;
+    shared->servo.desiredPosition = shared->servo.desiredPosition - (float)shared->servo.ratioDen;
+    shared->servo.currentSteps = shared->servo.currentSteps - shared->servo.ratioNum;
+//    shared->servo.desiredSteps = shared->servo.desiredSteps - shared->servo.ratioNum;
+  }
+  while (shared->servo.currentPosition < 0) {
+    shared->servo.currentPosition = shared->servo.currentPosition + (float)shared->servo.ratioDen;
+    shared->servo.desiredPosition = shared->servo.desiredPosition + (float)shared->servo.ratioDen;
+    shared->servo.currentSteps = shared->servo.currentSteps + shared->servo.ratioNum;
+//    shared->servo.desiredSteps = shared->servo.desiredSteps + shared->servo.ratioNum;
+  }
+
+  while (shared->servo.currentPosition >= (float)shared->servo.ratioDen) {
+    shared->servo.currentPosition = shared->servo.currentPosition - (float)shared->servo.ratioDen;
+    shared->servo.desiredPosition = shared->servo.desiredPosition - (float)shared->servo.ratioDen;
+    shared->servo.currentSteps = shared->servo.currentSteps - shared->servo.ratioNum;
+//    shared->servo.desiredSteps = shared->servo.desiredSteps - shared->servo.ratioNum;
+  }
+
+
+  float distanceToGo = fabs(shared->servo.currentPosition - shared->servo.desiredPosition);
+  bool invert = false;
+  if (distanceToGo > ((float)shared->servo.ratioDen/2.0f)) {
+    distanceToGo = (float)shared->servo.ratioDen - distanceToGo;
+    invert = true;
+  }
+
+  bool goForward = (shared->servo.desiredPosition - shared->servo.currentPosition) > 0;
+  bool goReverse = (shared->servo.desiredPosition - shared->servo.currentPosition) < 0;
+
+  if (invert) {
+    goForward = !goForward;
+    goReverse = !goReverse;
+  }
+
   shared->servo.allowedError = ((float)shared->servo.ratioDen / (float)shared->servo.ratioNum);
 
-  float distanceToGo = fabsf(shared->servo.desiredPosition - shared->servo.currentPosition);
   float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
   float space = (shared->servo.acceleration *  time * time) / 2;
 
   if (servoEnabled) {
-    if (shared->servo.desiredPosition > shared->servo.currentPosition) {
+    if (goForward) {
       // Start moving if we need to
       if (shared->servo.currentSpeed == 0) {
         shared->servo.currentSpeed += shared->servo.acceleration * interval;
@@ -234,7 +276,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       } else if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
         shared->servo.currentSpeed -= shared->servo.acceleration * interval;
       }
-    } else if (shared->servo.desiredPosition < shared->servo.currentPosition) {
+    } else if (goReverse) {
       if (shared->servo.currentSpeed == 0) {
         shared->servo.currentSpeed -= shared->servo.acceleration * interval;
       } else if (-shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
@@ -270,6 +312,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
                                           * (float) shared->servo.ratioNum
                                           / (float) shared->servo.ratioDen);
 
+
+  // generate pulses to reach desired position with the motor
   if (servoEnabled) {
     if (shared->servo.desiredSteps > shared->servo.currentSteps) {
       HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
@@ -341,7 +385,9 @@ void updateSpeedTask(void *argument) {
     }
 
     // Handle Enable signal for motion control
-    if (rampsData->shared.servo.desiredPosition != rampsData->shared.servo.currentPosition || syncMotionEnabled) {
+    bool anySyncMotionEnabled = false;
+    for (int i = 0; i < SCALES_COUNT; i++) {anySyncMotionEnabled = anySyncMotionEnabled || syncMotionEnabled[i]; }
+    if (rampsData->shared.servo.desiredPosition != rampsData->shared.servo.currentPosition || anySyncMotionEnabled) {
       if (!servoEnabled) {
         HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_SET);
         osDelay(100);
