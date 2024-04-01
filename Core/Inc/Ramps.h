@@ -25,6 +25,10 @@
 #include "Scales.h"
 
 #define MODBUS_ADDRESS 17
+
+#define STEP_PIN GPIO_PIN_0
+#define STEP_GPIO_PORT GPIOA
+
 #define DIR_PIN GPIO_PIN_14
 #define DIR_GPIO_PORT GPIOB
 
@@ -77,6 +81,7 @@ typedef struct {
 typedef struct {
   float servoCurrent;
   float servoDesired;
+  float servoSpeed;
   int32_t scaleCurrent[SCALES_COUNT];
   uint32_t cycles;
 } fastData_t;
@@ -98,16 +103,9 @@ typedef struct {
   rampsSharedData_t shared;
 
   // STM32 Related
-  TIM_HandleTypeDef *motorPwmTimer;
   TIM_HandleTypeDef *synchroRefreshTimer;
 
   UART_HandleTypeDef *modbusUart;
-
-  GPIO_TypeDef *directionPinPort;
-  uint16_t directionPin;
-
-  GPIO_TypeDef *enablePinPort;
-  uint16_t enablePin;
 
   // FreeRTOS related
   osThreadId_t TaskRampsHandle;
@@ -121,7 +119,7 @@ void MotorPwmTimerISR(rampsHandler_t *data);
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data);
 
-void updateSpeedTask(void *argument);
+_Noreturn void updateSpeedTask(void *argument);
 
-void userLedTask(void *argument);
+_Noreturn void userLedTask(__attribute__((unused)) void *argument);
 #endif
