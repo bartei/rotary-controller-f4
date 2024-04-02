@@ -166,26 +166,26 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     }
 
     // Syncro motion scaling
-      int16_t syncDistValue = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
-                              shared->scales[i].syncRatioNum /
-                              shared->scales[i].syncRatioDen;
-      int16_t syncDistError = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
-                              shared->scales[i].syncRatioNum %
-                              shared->scales[i].syncRatioDen;
-      scalesPrivate[i].oldPosition = shared->scales[i].position;
+    int16_t syncDistValue = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
+                            shared->scales[i].syncRatioNum /
+                            shared->scales[i].syncRatioDen;
+    int16_t syncDistError = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
+                            shared->scales[i].syncRatioNum %
+                            shared->scales[i].syncRatioDen;
+    scalesPrivate[i].oldPosition = shared->scales[i].position;
 
-      scalesPrivate[i].position += syncDistValue;
-      scalesPrivate[i].error += syncDistError;
-      if (scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
-        scalesPrivate[i].position++;
-        scalesPrivate[i].error -= shared->scales[i].syncRatioDen;
-      }
-      if (-scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
-        scalesPrivate[i].position--;
-        scalesPrivate[i].error += shared->scales[i].syncRatioDen;
-      }
+    scalesPrivate[i].position += syncDistValue;
+    scalesPrivate[i].error += syncDistError;
+    if (scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
+      scalesPrivate[i].position++;
+      scalesPrivate[i].error -= shared->scales[i].syncRatioDen;
+    }
+    if (-scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
+      scalesPrivate[i].position--;
+      scalesPrivate[i].error += shared->scales[i].syncRatioDen;
+    }
 
-      scalesPrivate[i].syncPosition = (float)scalesPrivate[i].position / 1000.0f;
+    scalesPrivate[i].syncPosition = (float)scalesPrivate[i].position / 1000.0f;
 
     // Trigger for auto offset update when enabling sync mode on an axis
     if (!scalesPrivate[i].syncMotionEnabled && shared->scales[i].syncMotion) {
@@ -233,13 +233,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.currentSteps = shared->servo.currentSteps + shared->servo.ratioNum;
   }
 
-  while (shared->servo.currentPosition >= (float)shared->servo.ratioDen) {
-    shared->servo.currentPosition = shared->servo.currentPosition - (float)shared->servo.ratioDen;
-    shared->servo.desiredPosition = shared->servo.desiredPosition - (float)shared->servo.ratioDen;
-    shared->servo.currentSteps = shared->servo.currentSteps - shared->servo.ratioNum;
-  }
-
-
   float distanceToGo = fabsf(shared->servo.currentPosition - shared->servo.desiredPosition);
   bool invert = false;
   if (distanceToGo > ((float)shared->servo.ratioDen/2.0f)) {
@@ -254,8 +247,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     goForward = !goForward;
     goReverse = !goReverse;
   }
-
-  shared->servo.allowedError = ((float)shared->servo.ratioDen / (float)shared->servo.ratioNum);
 
   float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
   float space = (shared->servo.acceleration *  time * time) / 2;
@@ -365,6 +356,12 @@ _Noreturn void updateSpeedTask(void *argument) {
 
   for(;;)
   {
+    // Update allowed error
+    rampsData->shared.servo.allowedError = (
+      (float)rampsData->shared.servo.ratioDen /
+      (float)rampsData->shared.servo.ratioNum
+    );
+
     // Update the current speed
     osDelay(50);
     deltaPosition = abs(oldPosition - (int32_t)rampsData->shared.servo.currentSteps);
