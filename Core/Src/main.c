@@ -92,7 +92,6 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
-  MX_TIM5_Init();
   MX_USART1_UART_Init();
   MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
@@ -100,17 +99,12 @@ int main(void)
   // htim2 is used in encoder mode
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
-  // htim5 is used for shared pwm generation
   // htim9 is used to generate the synchro motion
-  // htim10 is used to generate the ramps for indexing
 
-  RampsData.directionPin = DIR_PIN;
-  RampsData.directionPinPort = DIR_GPIO_PORT;
   RampsData.shared.scales[0].timerHandle = &htim1;
   RampsData.shared.scales[1].timerHandle = &htim2;
   RampsData.shared.scales[2].timerHandle = &htim3;
   RampsData.shared.scales[3].timerHandle = &htim4;
-  RampsData.motorPwmTimer = &htim5;
   RampsData.synchroRefreshTimer = &htim9;
   RampsData.modbusUart = &huart1;
   RampsStart(&RampsData);
