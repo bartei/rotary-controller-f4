@@ -34,6 +34,7 @@
 
 #define ENA_PIN GPIO_PIN_15
 #define ENA_GPIO_PORT GPIOB
+#define ENA_DELAY_MS 500
 
 #define USR_LED_Pin GPIO_PIN_12
 #define USR_LED_GPIO_Port GPIOB
