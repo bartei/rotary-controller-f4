@@ -133,6 +133,14 @@ void RampsStart(rampsHandler_t *rampsData) {
   ModbusStart(&RampsModbusData);
 }
 
+static inline void
+updatePositionAndError(int32_t delta, int32_t *position, int32_t *error, int32_t ratioNum, int32_t ratioDen) {
+  uint32_t startValue = (delta * ratioNum) + *error;
+  *position += startValue / ratioDen;
+  *error = startValue % ratioDen;
+}
+
+const float clock_period = 1.0f / 100000000.0f;
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   rampsSharedData_t *shared = &(data->shared);
   uint32_t start = DWT->CYCCNT;
@@ -146,46 +154,16 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   for (int i = 0; i < SCALES_COUNT; i++) {
     shared->scales[i].encoderPrevious = shared->scales[i].encoderCurrent;
     shared->scales[i].encoderCurrent = __HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle);
-    int16_t distValue, distError;
-    distValue = (int16_t) (shared->scales[i].encoderCurrent - shared->scales[i].encoderPrevious) *
-                shared->scales[i].ratioNum /
-                shared->scales[i].ratioDen;
-    distError = (int16_t) (shared->scales[i].encoderCurrent - shared->scales[i].encoderPrevious) *
-                shared->scales[i].ratioNum %
-                shared->scales[i].ratioDen;
-
-    shared->scales[i].position += distValue;
-    shared->scales[i].error += distError;
-    if (shared->scales[i].error >= shared->scales[i].ratioDen) {
-      shared->scales[i].position++;
-      shared->scales[i].error -= shared->scales[i].ratioDen;
-    }
-    if (-shared->scales[i].error >= shared->scales[i].ratioDen) {
-      shared->scales[i].position--;
-      shared->scales[i].error += shared->scales[i].ratioDen;
-    }
+    int32_t delta = (int16_t) (shared->scales[i].encoderCurrent - shared->scales[i].encoderPrevious);
+    updatePositionAndError(delta, &shared->scales[i].position, &shared->scales[i].error,
+                           shared->scales[i].ratioNum, shared->scales[i].ratioDen);
 
     // Syncro motion scaling
-    int16_t syncDistValue = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
-                            shared->scales[i].syncRatioNum /
-                            shared->scales[i].syncRatioDen;
-    int16_t syncDistError = (shared->scales[i].position - scalesPrivate[i].oldPosition) *
-                            shared->scales[i].syncRatioNum %
-                            shared->scales[i].syncRatioDen;
+    int32_t startValue = ((shared->scales[i].position - scalesPrivate[i].oldPosition) * shared->scales[i].syncRatioNum) + scalesPrivate[i].error;
+    scalesPrivate[i].position += startValue / shared->scales[i].syncRatioDen;
+    scalesPrivate[i].error = startValue % shared->scales[i].syncRatioDen;
     scalesPrivate[i].oldPosition = shared->scales[i].position;
-
-    scalesPrivate[i].position += syncDistValue;
-    scalesPrivate[i].error += syncDistError;
-    if (scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
-      scalesPrivate[i].position++;
-      scalesPrivate[i].error -= shared->scales[i].syncRatioDen;
-    }
-    if (-scalesPrivate[i].error >= shared->scales[i].syncRatioDen) {
-      scalesPrivate[i].position--;
-      scalesPrivate[i].error += shared->scales[i].syncRatioDen;
-    }
-
-    scalesPrivate[i].syncPosition = (float)scalesPrivate[i].position / 1000;
+    scalesPrivate[i].syncPosition = (float) scalesPrivate[i].position / 1000;
 
     // Adjust overflowing values
     if (scalesPrivate[i].syncMotionEnabled) {
@@ -260,8 +238,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     goReverse = !goReverse;
   }
 
-  float time = (shared->servo.currentSpeed) / shared->servo.acceleration;
-  float space = (shared->servo.acceleration *  time * time) / 2;
+  float space = (shared->servo.currentSpeed * shared->servo.currentSpeed) / (2 * shared->servo.acceleration);
 
   if (servoEnabled) {
     if (goForward) {
