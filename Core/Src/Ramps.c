@@ -165,10 +165,10 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       shared->servo.desiredSteps += data->scalesSyncDeltaPosSteps[i].scaledDelta;
     }
 
-    if (shared->scales[i].position > 10000) {
-      shared->scales[i].position -= 10000;
-      data->scalesSyncDeltaPos[i].oldPosition -= 10000;
-    }
+//    if (shared->scales[i].position > 10000) {
+//      shared->scales[i].position -= 10000;
+//      data->scalesSyncDeltaPos[i].oldPosition -= 10000;
+//    }
     shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
