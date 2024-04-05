@@ -94,6 +94,9 @@ void RampsStart(rampsHandler_t *rampsData) {
   configureOutputPin(DIR_GPIO_PORT, DIR_PIN);
   configureOutputPin(ENA_GPIO_PORT, ENA_PIN);
   configureOutputPin(STEP_GPIO_PORT, STEP_PIN);
+  configureOutputPin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
+  configureOutputPin(SPARE_2_GPIO_PORT, SPARE_2_PIN);
+  configureOutputPin(SPARE_3_GPIO_PORT, SPARE_3_PIN);
 
   // Configure tasks
   osThreadNew(userLedTask, rampsData, &ledTaskAttributes);
@@ -143,11 +146,14 @@ deltaPositionAndError(int32_t currentValue, int32_t ratioNum, int32_t ratioDen, 
 
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
+  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
+  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
   rampsSharedData_t *shared = &(data->shared);
   uint32_t start = DWT->CYCCNT;
   shared->execution_interval_previous = shared->execution_interval_current;
   shared->execution_interval_current = DWT->CYCCNT;
   shared->execution_interval = shared->execution_interval_current - shared->execution_interval_previous;
+  shared->fastData.executionInterval = shared->execution_interval;
   float interval = (float)shared->execution_interval / 100000000.0f;
 
   for (int i = 0; i < SCALES_COUNT; i++) {
@@ -299,6 +305,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   }
 
   shared->execution_cycles = DWT->CYCCNT - start;
+  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_RESET);
 }
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {

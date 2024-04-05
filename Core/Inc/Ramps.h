@@ -39,6 +39,15 @@
 #define USR_LED_Pin GPIO_PIN_12
 #define USR_LED_GPIO_Port GPIOB
 
+#define SPARE_1_PIN GPIO_PIN_1
+#define SPARE_1_GPIO_PORT GPIOA
+
+#define SPARE_2_PIN GPIO_PIN_3
+#define SPARE_2_GPIO_PORT GPIOA
+
+#define SPARE_3_PIN GPIO_PIN_4
+#define SPARE_3_GPIO_PORT GPIOA
+
 
 typedef struct {
   int32_t scaledDelta;
@@ -100,6 +109,7 @@ typedef struct {
   int32_t scaleCurrent[SCALES_COUNT];
   int32_t scaleSpeed[SCALES_COUNT];
   uint32_t cycles;
+  uint32_t executionInterval;
 } fastData_t;
 
 typedef struct {
