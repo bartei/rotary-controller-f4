@@ -113,10 +113,10 @@ typedef struct {
 } fastData_t;
 
 typedef struct {
-  uint32_t execution_interval;
-  uint32_t execution_interval_previous;
-  uint32_t execution_interval_current;
-  uint32_t execution_cycles;
+  uint32_t executionInterval;
+  uint32_t executionIntervalPrevious;
+  uint32_t executionIntervalCurrent;
+  uint32_t executionCycles;
   index_t index;
   servo_t servo;
   input_t scales[SCALES_COUNT];
@@ -140,6 +140,9 @@ typedef struct {
   deltaPosError_t servoSpeed;
 
   deltaPosError_t indexDeltaPos;
+
+  float synchroRefreshFrequency;
+  uint32_t shadowServoRatioNum, shadowServoRatioDen;
 
 } rampsHandler_t;
 
