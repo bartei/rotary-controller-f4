@@ -251,8 +251,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.current_speed = 0;
   }
 
-  deltaPositionAndError((int32_t) (shared->servo.current_position * 100000.0f), shared->servo.ratio_num,
-                        shared->servo.ratio_den * 100000, &data->indexDeltaPos);
+  deltaPositionAndError((int32_t) (shared->servo.current_position * 10000.0f), shared->servo.ratio_num,
+                        shared->servo.ratio_den * 10000, &data->indexDeltaPos);
   shared->servo.desired_steps += data->indexDeltaPos.scaledDelta;
 
   // Update fast access variables for display refresh
