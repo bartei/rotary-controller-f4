@@ -334,6 +334,12 @@ _Noreturn void updateSpeedTask(void *argument) {
                        (float) (rampsData->synchroRefreshTimer->Init.Period + 1);
     float motor_max_freq = (rampsData->shared.servo.max_speed * 1.1f * (float) rampsData->shared.servo.ratio_num /
                             (float) rampsData->shared.servo.ratio_den);
+
+    // Clamping value for max speed to the maximum allowed by the current timer refresh rate from the sync routine
+    if (motor_max_freq > 25000) {
+      rampsData->shared.servo.max_speed = 25000 * (float) rampsData->shared.servo.ratio_den / (float) rampsData->shared.servo.ratio_num;
+    }
+
     float newPeriod = floorf(clock_freq / motor_max_freq);
     if (newPeriod > (float) UINT16_MAX) {
       newPeriod = 65535;
