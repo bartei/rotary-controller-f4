@@ -310,7 +310,7 @@ _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
 
 }
 
-const int32_t updateSpeedTaskTicks = 50;
+const int32_t updateSpeedTaskTicks = 100;
 
 _Noreturn void updateSpeedTask(void *argument) {
   rampsHandler_t *rampsData = (rampsHandler_t *) argument;
@@ -323,7 +323,7 @@ _Noreturn void updateSpeedTask(void *argument) {
     // Update the current speed
     osDelay(updateSpeedTaskTicks);
 
-    deltaPositionAndError((int32_t) (rampsData->shared.fastData.servoCurrent * 1000), updateSpeedTaskTicks,
+    deltaPositionAndError((int32_t) (rampsData->shared.fastData.servoCurrent * 100), updateSpeedTaskTicks,
                           HAL_GetTickFreq(), &rampsData->servoSpeed);
 
     rampsData->shared.fastData.servoSpeed = (float) (rampsData->servoSpeed.scaledDelta) / 1000.0f;
