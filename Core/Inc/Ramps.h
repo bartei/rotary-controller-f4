@@ -55,46 +55,46 @@ typedef struct {
   int32_t oldPosition;
 } deltaPosError_t;
 
-typedef enum : uint16_t {
+typedef enum {
   linear = 0,
   spindle = 1
 } input_mode_t;
 
 typedef struct {
   TIM_HandleTypeDef *timerHandle;
-  uint16_t encoderPrevious;
-  uint16_t encoderCurrent;
-  int32_t ratioNum;
-  int32_t ratioDen;
-  int32_t maxValue;
-  int32_t minValue;
+  uint16_t encoder_previous;
+  uint16_t encoder_current;
+  int32_t ratio_num;
+  int32_t ratio_den;
+  int32_t max_value;
+  int32_t min_value;
   int32_t position;
   int32_t speed;
   int32_t error;
-  int32_t syncRatioNum, syncRatioDen;
-  bool syncMotion;
-  input_mode_t mode;
+  int32_t sync_ratio_num, sync_ratio_den;
+  uint16_t sync_enable;
+  uint16_t mode;
 } input_t;
 
 typedef struct {
-  float minSpeed;
-  float maxSpeed;
-  float currentSpeed;
+  float min_speed;
+  float max_speed;
+  float current_speed;
   float acceleration;
-  float absoluteOffset;
-  float indexOffset;
+  float absolute_offset;
+  float index_offset;
   float unused_1;
-  float desiredPosition;
-  float currentPosition;
-  int32_t currentSteps;
-  int32_t desiredSteps;
-  int32_t ratioNum;
-  int32_t ratioDen;
+  float desired_position;
+  float current_position;
+  int32_t current_steps;
+  int32_t desired_steps;
+  int32_t ratio_num;
+  int32_t ratio_den;
   int32_t unused_2;
   int32_t unused_3;
   float unused_4;
-  float estimatedSpeed;
-  float allowedError;
+  float estimated_speed;
+  float allowed_error;
 } servo_t;
 
 typedef struct {
@@ -141,8 +141,6 @@ typedef struct {
 
   deltaPosError_t indexDeltaPos;
 
-  float synchroRefreshFrequency;
-  uint32_t shadowServoRatioNum, shadowServoRatioDen;
 
 } rampsHandler_t;
 
