@@ -251,8 +251,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.current_speed = 0;
   }
 
-  deltaPositionAndError((int32_t) (shared->servo.current_position * 10000.0f), shared->servo.ratio_num,
-                        shared->servo.ratio_den * 10000, &data->indexDeltaPos);
+  deltaPositionAndError((int32_t) (shared->servo.current_position * 100000.0f), shared->servo.ratio_num,
+                        shared->servo.ratio_den * 100000, &data->indexDeltaPos);
   shared->servo.desired_steps += data->indexDeltaPos.scaledDelta;
 
   // Update fast access variables for display refresh
@@ -272,27 +272,23 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->servo.desired_steps += shared->servo.ratio_num;
   }
 
-  if (servoCyclesCounter <= (servoCycles / 2) ) {
-    HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
-  }
   if (servoEnabled && servoCyclesCounter == 0) {
     // generate pulses to reach desired position with the motor
     if (shared->servo.desired_steps > shared->servo.current_steps) {
       HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
       HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
-      servoCyclesCounter = servoCycles;
       shared->servo.current_steps++;
     } else if (shared->servo.desired_steps < shared->servo.current_steps) {
       HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
       HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
-      servoCyclesCounter = servoCycles;
       shared->servo.current_steps--;
     }
+  } else {
+    HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
   }
 
-  if (servoCyclesCounter > 0) {
-    servoCyclesCounter--;
-  }
+
+  servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;
 
   shared->executionCycles = DWT->CYCCNT - start;
   HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_RESET);
