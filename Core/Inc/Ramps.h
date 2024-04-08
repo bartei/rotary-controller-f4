@@ -77,24 +77,24 @@ typedef struct {
 } input_t;
 
 typedef struct {
-  float min_speed;
-  float max_speed;
-  float current_speed;
+  float minSpeed;
+  float maxSpeed;
+  float currentSpeed;
   float acceleration;
-  float absolute_offset;
-  float index_offset;
+  float absoluteOffset;
+  float indexOffset;
   float unused_1;
-  float desired_position;
-  float current_position;
-  int32_t current_steps;
-  int32_t desired_steps;
-  int32_t ratio_num;
-  int32_t ratio_den;
+  float desiredPosition;
+  float currentPosition;
+  int32_t currentSteps;
+  int32_t desiredSteps;
+  int32_t ratioNum;
+  int32_t ratioDen;
   int32_t unused_2;
   int32_t unused_3;
   float unused_4;
-  float estimated_speed;
-  float allowed_error;
+  float estimatedSpeed;
+  float allowedError;
 } servo_t;
 
 typedef struct {
@@ -137,8 +137,8 @@ typedef struct {
   deltaPosError_t scalesSyncDeltaPosSteps[SCALES_COUNT];
   deltaPosError_t scalesSpeed[SCALES_COUNT];
 
-  deltaPosError_t servoSpeed;
-
+//  deltaPosError_t servoSpeed;
+  float speedEstimatorOldPosition;
   deltaPosError_t indexDeltaPos;
 
 
