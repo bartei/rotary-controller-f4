@@ -138,7 +138,6 @@ static inline void updateIndexingPosition(rampsHandler_t *data) {
   rampsSharedData_t *shared = &(data->shared);
 
   float interval = (float) shared->executionInterval / 100000000.0f;
-  float distanceToGo = fabsf(shared->servo.currentPosition - shared->servo.desiredPosition);
   bool invert = false;
 
   // Normalize absolute offset
@@ -164,7 +163,7 @@ static inline void updateIndexingPosition(rampsHandler_t *data) {
     shared->servo.desiredPosition += (float) shared->servo.ratioDen;
   }
 
-
+  float distanceToGo = fabsf(shared->servo.currentPosition - shared->servo.desiredPosition);
   if (distanceToGo > ((float) shared->servo.ratioDen / 2.0f)) {
     distanceToGo = (float) shared->servo.ratioDen - distanceToGo;
     invert = true;
