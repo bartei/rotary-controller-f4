@@ -241,6 +241,8 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   shared->executionInterval = shared->executionIntervalCurrent - shared->executionIntervalPrevious;
   shared->fastData.executionInterval = shared->executionInterval;
 
+  HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
+
   for (int i = 0; i < SCALES_COUNT; i++) {
     deltaPositionAndError(__HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle), shared->scales[i].ratio_num,
                           shared->scales[i].ratio_den, &data->scalesDeltaPos[i]);
@@ -307,8 +309,6 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
       HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
       shared->servo.currentSteps--;
     }
-  } else {
-    HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
   }
 
   servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;
@@ -362,17 +362,19 @@ _Noreturn void updateSpeedTask(void *argument) {
                             (float) rampsData->shared.servo.ratioDen);
 
     // Clamping value for max speed to the maximum allowed by the current timer refresh rate from the sync routine
-    if (motor_max_freq > 25000) {
+    if (motor_max_freq > 50000) {
+      motor_max_freq = 50000;
+      // N.b. this is den/num on purpose
       rampsData->shared.servo.maxSpeed =
-      25000 * (float) rampsData->shared.servo.ratioDen / (float) rampsData->shared.servo.ratioNum;
+      50000 * (float) rampsData->shared.servo.ratioDen / (float) rampsData->shared.servo.ratioNum;
     }
 
     float newPeriod = floorf(clock_freq / motor_max_freq);
     if (newPeriod > (float) UINT16_MAX) {
       newPeriod = 65535;
     }
-    if (newPeriod < 2) {
-      newPeriod = 2;
+    if (newPeriod < 1) {
+      newPeriod = 1;
     }
     servoCycles = (uint16_t) newPeriod;
 
