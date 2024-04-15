@@ -62,17 +62,17 @@ typedef enum {
 
 typedef struct {
   TIM_HandleTypeDef *timerHandle;
-  uint16_t encoder_previous;
-  uint16_t encoder_current;
-  int32_t ratio_num;
-  int32_t ratio_den;
-  int32_t max_value;
-  int32_t min_value;
+  uint16_t encoderPrevious;
+  uint16_t encoderCurrent;
+  int32_t ratioNum;
+  int32_t ratioDen;
+  int32_t maxValue;
+  int32_t minValue;
   int32_t position;
   int32_t speed;
   int32_t error;
-  int32_t sync_ratio_num, sync_ratio_den;
-  uint16_t sync_enable;
+  int32_t syncRatioNum, syncRatioDen;
+  uint16_t syncEnable;
   uint16_t mode;
 } input_t;
 
@@ -83,17 +83,12 @@ typedef struct {
   float acceleration;
   float absoluteOffset;
   float indexOffset;
-  float unused_1;
   float desiredPosition;
   float currentPosition;
   int32_t currentSteps;
   int32_t desiredSteps;
   int32_t ratioNum;
   int32_t ratioDen;
-  int32_t unused_2;
-  int32_t unused_3;
-  float unused_4;
-  float estimatedSpeed;
   float allowedError;
 } servo_t;
 
@@ -110,6 +105,8 @@ typedef struct {
   int32_t scaleSpeed[SCALES_COUNT];
   uint32_t cycles;
   uint32_t executionInterval;
+  uint16_t servoEnable;
+  int16_t servoDirection;
 } fastData_t;
 
 typedef struct {
@@ -137,11 +134,8 @@ typedef struct {
   deltaPosError_t scalesSyncDeltaPosSteps[SCALES_COUNT];
   deltaPosError_t scalesSpeed[SCALES_COUNT];
 
-//  deltaPosError_t servoSpeed;
   float speedEstimatorOldPosition;
   deltaPosError_t indexDeltaPos;
-
-
 } rampsHandler_t;
 
 extern modbusHandler_t RampsModbusData;
@@ -153,4 +147,10 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data);
 _Noreturn void updateSpeedTask(void *argument);
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument);
+
+_Noreturn void servoEnableTask(void *argument);
+
+static void timServoEnableOnCallback(xTimerHandle pxTimer);
+static void timServoEnableOffCallback(xTimerHandle pxTimer);
+
 #endif
