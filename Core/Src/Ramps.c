@@ -233,7 +233,7 @@ static inline void updateIndexingPosition(rampsHandler_t *data) {
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
-  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_2_PIN, GPIO_PIN_SET);
   rampsSharedData_t *shared = &(data->shared);
   uint32_t start = DWT->CYCCNT;
   shared->executionIntervalPrevious = shared->executionIntervalCurrent;
@@ -314,7 +314,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;
 
   shared->executionCycles = DWT->CYCCNT - start;
-  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_2_PIN, GPIO_PIN_RESET);
 }
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
