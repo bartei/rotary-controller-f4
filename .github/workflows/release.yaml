@@ -5,8 +5,7 @@ on:
     branches:
       - main
       - dev
-      - bookworm
-      - arm64
+      - slow
 
 permissions: write-all
 
