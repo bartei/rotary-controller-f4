@@ -50,9 +50,11 @@
 
 
 typedef struct {
-  int32_t scaledDelta;
-  int32_t error;
+  int32_t delta;
   int32_t oldPosition;
+  int32_t position;
+  int32_t scaledDelta;
+  int32_t error
 } deltaPosError_t;
 
 typedef enum {
@@ -77,36 +79,24 @@ typedef struct {
 } input_t;
 
 typedef struct {
-  float minSpeed;
   float maxSpeed;
   float currentSpeed;
   float acceleration;
-  float absoluteOffset;
-  float indexOffset;
-  float desiredPosition;
-  float currentPosition;
-  int32_t currentSteps;
-  int32_t desiredSteps;
-  int32_t ratioNum;
-  int32_t ratioDen;
-  float allowedError;
+  int32_t direction;
+  uint32_t destinationSteps;
+  uint32_t currentSteps;
+  uint32_t desiredSteps;
 } servo_t;
 
 typedef struct {
-  int32_t divisions;
-  int32_t index;
-} index_t;
-
-typedef struct {
-  float servoCurrent;
-  float servoDesired;
+  uint32_t servoCurrent;
+  uint32_t servoDesired;
   float servoSpeed;
   int32_t scaleCurrent[SCALES_COUNT];
   int32_t scaleSpeed[SCALES_COUNT];
   uint32_t cycles;
   uint32_t executionInterval;
   uint16_t servoEnable;
-  int16_t servoDirection;
 } fastData_t;
 
 typedef struct {
@@ -114,7 +104,6 @@ typedef struct {
   uint32_t executionIntervalPrevious;
   uint32_t executionIntervalCurrent;
   uint32_t executionCycles;
-  index_t index;
   servo_t servo;
   input_t scales[SCALES_COUNT];
   fastData_t fastData;
@@ -135,7 +124,7 @@ typedef struct {
   deltaPosError_t scalesSpeed[SCALES_COUNT];
 
   float speedEstimatorOldPosition;
-  deltaPosError_t indexDeltaPos;
+  deltaPosError_t rampsDeltaPos;
 } rampsHandler_t;
 
 extern modbusHandler_t RampsModbusData;

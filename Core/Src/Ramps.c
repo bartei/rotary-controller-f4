@@ -26,12 +26,6 @@ modbusHandler_t RampsModbusData;
 uint16_t servoCycles = 0;
 uint16_t servoCyclesCounter = 0;
 
-typedef struct {
-  int32_t syncPosition;
-} scalesPrivate_t;
-
-scalesPrivate_t scalesPrivate[SCALES_COUNT];
-
 
 //osThreadId_t userLedTaskHandler;
 const osThreadAttr_t ledTaskAttributes = {
@@ -48,7 +42,7 @@ const osThreadAttr_t speedTaskAttributes = {
 .priority = (osPriority_t) osPriorityLow,
 };
 
-osThreadId_t updateServoEnableTaskHandler;
+//osThreadId_t updateServoEnableTaskHandler;
 const osThreadAttr_t servoEnableTaskAttributes = {
 .name = "servoEnableTask",
 .stack_size = 128 * 4,
@@ -74,17 +68,8 @@ void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
 
 
 void RampsStart(rampsHandler_t *rampsData) {
-  rampsData->shared.index.divisions = 24;
-  rampsData->shared.index.index = 0;
-
-  rampsData->shared.servo.ratioDen = 360;
-  rampsData->shared.servo.ratioNum = 400;
-  rampsData->shared.servo.minSpeed = 0;
   rampsData->shared.servo.maxSpeed = 720;
   rampsData->shared.servo.acceleration = 120;
-//  rampsData->shared.servo.maxValue = 360;
-//  rampsData->shared.servo.minValue = 0;
-  rampsData->shared.servo.allowedError = 0;
 
   for (int i = 0; i < SCALES_COUNT; i++) {
     rampsData->shared.scales[i].ratioNum = 1000;
@@ -145,108 +130,44 @@ deltaPositionAndError(int32_t currentValue, int32_t ratioNum, int32_t ratioDen, 
 
 static inline void updateIndexingPosition(rampsHandler_t *data) {
   rampsSharedData_t *shared = &(data->shared);
-
   float interval = (float) shared->executionInterval / 100000000.0f;
-  bool invert = false;
+  uint32_t distance;
 
-  // Normalize absolute offset
-  shared->servo.absoluteOffset = fmodf(shared->servo.absoluteOffset, (float) shared->servo.ratioDen);
-  if (shared->servo.absoluteOffset < 0) shared->servo.absoluteOffset += (float) shared->servo.ratioDen;
-
-  // Indexing position calculation
-  shared->servo.indexOffset =
-  (float) shared->servo.ratioDen / (float) shared->index.divisions * (float) shared->index.index;
-
-  shared->servo.desiredPosition = fmodf(shared->servo.indexOffset + shared->servo.absoluteOffset,
-                                        (float) shared->servo.ratioDen);
-  if (shared->servo.desiredPosition < 0) shared->servo.desiredPosition += (float) shared->servo.ratioDen;
-
-  if (shared->servo.currentPosition >= (float) shared->servo.ratioDen) {
-    data->indexDeltaPos.oldPosition -= shared->servo.ratioDen * 10000;
-    shared->servo.currentPosition -= (float) shared->servo.ratioDen;
-    shared->servo.desiredPosition -= (float) shared->servo.ratioDen;
-  }
-  if (shared->servo.currentPosition < 0) {
-    data->indexDeltaPos.oldPosition += shared->servo.ratioDen * 10000;
-    shared->servo.currentPosition += (float) shared->servo.ratioDen;
-    shared->servo.desiredPosition += (float) shared->servo.ratioDen;
+  if (shared->servo.direction == 1) {
+    distance = shared->servo.destinationSteps - shared->servo.currentSteps;
+  } else if (shared->servo.direction == -1) {
+    distance = shared->servo.currentSteps - shared->servo.destinationSteps;
   }
 
-  float distanceToGo = fabsf(shared->servo.currentPosition - shared->servo.desiredPosition);
-  if (distanceToGo > ((float) shared->servo.ratioDen / 2.0f)) {
-    distanceToGo = (float) shared->servo.ratioDen - distanceToGo;
-    invert = true;
+  float stopDistance = (shared->servo.currentSpeed * shared->servo.currentSpeed / shared->servo.acceleration) / 2;
+
+  // start motion
+  if (shared->servo.currentSpeed == 0 && distance > 0) {
+    shared->servo.currentSpeed += shared->servo.acceleration * interval;
   }
 
-  bool goForward = (shared->servo.desiredPosition - shared->servo.currentPosition) > 0;
-  bool goReverse = (shared->servo.desiredPosition - shared->servo.currentPosition) < 0;
-
-  if (invert) {
-    goForward = !goForward;
-    goReverse = !goReverse;
-  }
-
-  float space = (shared->servo.currentSpeed * shared->servo.currentSpeed / shared->servo.acceleration) / 2;
-
-  if (shared->fastData.servoEnable != 0) {
-    if (goForward) {
-      // Start moving if we need to
-      if (shared->servo.currentSpeed == 0) {
-        shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      } else if (shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
-        shared->servo.currentSpeed += shared->servo.acceleration * interval;
-        if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
-          shared->servo.currentSpeed = shared->servo.maxSpeed;
-        }
-      } else if (distanceToGo <= space && shared->servo.currentSpeed > shared->servo.minSpeed) {
-        shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-        if (shared->servo.currentSpeed < shared->servo.minSpeed) {
-          shared->servo.currentSpeed = shared->servo.minSpeed;
-        }
-      } else if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      }
-    } else if (goReverse) {
-      if (shared->servo.currentSpeed == 0) {
-        shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      } else if (-shared->servo.currentSpeed < shared->servo.maxSpeed && distanceToGo > space) {
-        shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-        if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
-          shared->servo.currentSpeed = -shared->servo.maxSpeed;
-        }
-      } else if (distanceToGo <= space && -shared->servo.currentSpeed > shared->servo.minSpeed) {
-        shared->servo.currentSpeed += shared->servo.acceleration * interval;
-        if (-shared->servo.currentSpeed < shared->servo.minSpeed) {
-          shared->servo.currentSpeed = -shared->servo.minSpeed;
-        }
-      } else if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      }
+  // accelerate
+  if (shared->servo.currentSpeed > 0 && (float)distance > stopDistance && shared->servo.currentSpeed < shared->servo.maxSpeed) {
+    shared->servo.currentSpeed += shared->servo.acceleration * interval;
+    // max speed
+    if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
+      shared->servo.currentSpeed = shared->servo.maxSpeed;
     }
+  }
 
-    shared->servo.currentPosition += shared->servo.currentSpeed * interval;
-
-    // Target reached when we are within the allowed error
-    if (fabsf(shared->servo.currentPosition - shared->servo.desiredPosition) <= shared->servo.allowedError) {
-      shared->servo.currentPosition = shared->servo.desiredPosition;
+  // decelerate
+  if (shared->servo.currentSpeed > 0 && (float)distance <= stopDistance) {
+    shared->servo.currentSpeed += shared->servo.acceleration * interval;
+    if (shared->servo.currentSpeed < 0) {
       shared->servo.currentSpeed = 0;
     }
-
-    // Update the desired steps for the new desired position
-    deltaPositionAndError((int32_t) (shared->servo.currentPosition * 10000.0f), shared->servo.ratioNum,
-                          shared->servo.ratioDen * 10000, &data->indexDeltaPos);
-    shared->servo.desiredSteps += data->indexDeltaPos.scaledDelta;
   }
 
-  if (shared->servo.currentSteps >= shared->servo.ratioNum) {
-    shared->servo.currentSteps -= shared->servo.ratioNum;
-    shared->servo.desiredSteps -= shared->servo.ratioNum;
-  }
-
-  if (shared->servo.currentSteps < 0) {
-    shared->servo.currentSteps += shared->servo.ratioNum;
-    shared->servo.desiredSteps += shared->servo.ratioNum;
-  }
+  uint32_t positionIncrement = (int32_t)((uint64_t)(
+  shared->servo.currentSpeed * (float)shared->executionInterval) + data->rampsDeltaPos.error / 100000000);
+  data->rampsDeltaPos.error = (int32_t)((uint64_t)(
+  shared->servo.currentSpeed * (float)shared->executionInterval) + data->rampsDeltaPos.error % 100000000);
+  shared->servo.desiredSteps += positionIncrement;
 }
 
 
@@ -263,34 +184,20 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
 
   for (int i = 0; i < SCALES_COUNT; i++) {
-    deltaPositionAndError(__HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle), shared->scales[i].ratioNum,
-                          shared->scales[i].ratioDen, &data->scalesDeltaPos[i]);
-    shared->scales[i].position += data->scalesDeltaPos[i].scaledDelta;
+    data->scalesDeltaPos[i].oldPosition = data->scalesDeltaPos[i].position;
+    data->scalesDeltaPos[i].position = __HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle);
+    data->scalesDeltaPos[i].delta = (int16_t)data->scalesDeltaPos[i].position - data->scalesDeltaPos[i].oldPosition;
+    shared->scales[i].position += data->scalesDeltaPos[i].delta;
 
     // calculate delta for sync ratio configured for the current scale
-    deltaPositionAndError(shared->scales[i].position, shared->scales[i].syncRatioNum,
-                          shared->scales[i].syncRatioDen, &data->scalesSyncDeltaPos[i]);
-    scalesPrivate[i].syncPosition += data->scalesSyncDeltaPos[i].scaledDelta;
-    // calculate delta steps for the servo sync position
-    deltaPositionAndError(scalesPrivate[i].syncPosition, shared->servo.ratioNum, shared->servo.ratioDen * 1000,
-                          &data->scalesSyncDeltaPosSteps[i]);
-
-    // Update the desired steps and clear the accumulator for this scale if enabled
     if (shared->scales[i].syncEnable != 0) {
-      shared->servo.desiredSteps += data->scalesSyncDeltaPosSteps[i].scaledDelta;
-    }
-
-    if (shared->scales[i].mode == spindle) {
-      if (shared->scales[i].position >= (shared->scales[i].ratioNum * 1000)) {
-        shared->scales[i].position -= (shared->scales[i].ratioNum * 1000);
-        data->scalesSyncDeltaPos[i].oldPosition -= (shared->scales[i].ratioNum * 1000);
-        data->scalesSpeed[i].oldPosition -= (shared->scales[i].ratioNum * 1000);
-      }
-      if (shared->scales[i].position < 0) {
-        shared->scales[i].position += (shared->scales[i].ratioNum * 1000);
-        data->scalesSyncDeltaPos[i].oldPosition += (shared->scales[i].ratioNum * 1000);
-        data->scalesSpeed[i].oldPosition += (shared->scales[i].ratioNum * 1000);
-      }
+      deltaPositionAndError(
+        shared->scales[i].position,
+        shared->scales[i].syncRatioNum,
+        shared->scales[i].syncRatioDen,
+        &data->scalesSyncDeltaPos[i]
+      );
+      shared->servo.desiredSteps += data->scalesSyncDeltaPos[i].scaledDelta;
     }
 
     // Update fastData current position
@@ -339,65 +246,28 @@ const int32_t updateSpeedTaskTicks = 50;
 _Noreturn void updateSpeedTask(void *argument) {
   rampsHandler_t *rampsData = (rampsHandler_t *) argument;
 
-  float floatSpeedTaskFreq = 1000.0f / (float) updateSpeedTaskTicks;
-  rampsData->speedEstimatorOldPosition = 0;
-
   for (;;) {
-    // Update allowed error
-    rampsData->shared.servo.allowedError =
-    ((float) rampsData->shared.servo.ratioDen / (float) rampsData->shared.servo.ratioNum) / 2.0f;
 
     // Update the current speed
     osDelay(updateSpeedTaskTicks);
 
     // Update fast access variables
     rampsData->shared.fastData.cycles = rampsData->shared.executionCycles;
-    rampsData->shared.fastData.servoCurrent =
-    (float) rampsData->shared.servo.currentSteps /
-    ((float) rampsData->shared.servo.ratioNum / (float) rampsData->shared.servo.ratioDen);
-    rampsData->shared.fastData.servoDesired =
-    (float) rampsData->shared.servo.desiredSteps /
-    ((float) rampsData->shared.servo.ratioNum / (float) rampsData->shared.servo.ratioDen);
+    rampsData->shared.fastData.servoCurrent = rampsData->shared.servo.currentSteps;
+    rampsData->shared.fastData.servoDesired = rampsData->shared.servo.desiredSteps;
+    rampsData->shared.fastData.servoSpeed = rampsData->shared.servo.currentSpeed;
 
-    rampsData->shared.fastData.servoSpeed =
-    (rampsData->shared.fastData.servoCurrent - rampsData->speedEstimatorOldPosition) * floatSpeedTaskFreq;
-
-    rampsData->speedEstimatorOldPosition = rampsData->shared.fastData.servoCurrent;
-
-    // If maximum speed has been changed, update the motor timer accordingly
-    float clock_freq = 100000000.0f / ((float) rampsData->synchroRefreshTimer->Init.Prescaler + 1) /
-                       (float) (rampsData->synchroRefreshTimer->Init.Period + 1);
-    float motor_max_freq = (rampsData->shared.servo.maxSpeed * 1.1f * (float) rampsData->shared.servo.ratioNum /
-                            (float) rampsData->shared.servo.ratioDen);
-
-    // Clamping value for max speed to the maximum allowed by the current timer refresh rate from the sync routine
-    if (motor_max_freq > 50000) {
-      motor_max_freq = 50000;
-      // N.b. this is den/num on purpose
-      rampsData->shared.servo.maxSpeed =
-      50000 * (float) rampsData->shared.servo.ratioDen / (float) rampsData->shared.servo.ratioNum;
-    }
-
-    float newPeriod = floorf(clock_freq / motor_max_freq);
-    if (newPeriod > (float) UINT16_MAX) {
-      newPeriod = 65535;
-    }
-    if (newPeriod < 1) {
-      newPeriod = 1;
-    }
-    servoCycles = (uint16_t) newPeriod;
-
-    for (int i = 0; i < SCALES_COUNT; i++) {
-      // Update scale/spindle speed value
-      deltaPositionAndError(
-      rampsData->shared.scales[i].position,
-      updateSpeedTaskTicks,
-      HAL_GetTickFreq(),
-      &rampsData->scalesSpeed[i]
-      );
-      rampsData->shared.scales[i].speed = rampsData->scalesSpeed[i].scaledDelta;
-      rampsData->shared.fastData.scaleSpeed[i] = rampsData->scalesSpeed[i].scaledDelta;
-    }
+//    for (int i = 0; i < SCALES_COUNT; i++) {
+//      // Update scale/spindle speed value
+//      deltaPositionAndError(
+//      rampsData->shared.scales[i].position,
+//      updateSpeedTaskTicks,
+//      HAL_GetTickFreq(),
+//      &rampsData->scalesSpeed[i]
+//      );
+//      rampsData->shared.scales[i].speed = rampsData->scalesSpeed[i].scaledDelta;
+//      rampsData->shared.fastData.scaleSpeed[i] = rampsData->scalesSpeed[i].scaledDelta;
+//    }
   }
 }
 
