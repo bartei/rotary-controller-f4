@@ -51,31 +51,18 @@
 
 typedef struct {
   int32_t delta;
-  int32_t oldPosition;
-  int32_t position;
+  uint32_t oldPosition;
+  uint32_t position;
   int32_t scaledDelta;
-  int32_t error
+  int32_t error;
 } deltaPosError_t;
-
-typedef enum {
-  linear = 0,
-  spindle = 1
-} input_mode_t;
 
 typedef struct {
   TIM_HandleTypeDef *timerHandle;
-  uint16_t encoderPrevious;
-  uint16_t encoderCurrent;
-  int32_t ratioNum;
-  int32_t ratioDen;
-  int32_t maxValue;
-  int32_t minValue;
   int32_t position;
   int32_t speed;
-  int32_t error;
   int32_t syncRatioNum, syncRatioDen;
   uint16_t syncEnable;
-  uint16_t mode;
 } input_t;
 
 typedef struct {
@@ -120,10 +107,7 @@ typedef struct {
 
   deltaPosError_t scalesDeltaPos[SCALES_COUNT];
   deltaPosError_t scalesSyncDeltaPos[SCALES_COUNT];
-  deltaPosError_t scalesSyncDeltaPosSteps[SCALES_COUNT];
   deltaPosError_t scalesSpeed[SCALES_COUNT];
-
-  float speedEstimatorOldPosition;
   deltaPosError_t rampsDeltaPos;
 } rampsHandler_t;
 
