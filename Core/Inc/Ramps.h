@@ -68,6 +68,7 @@ typedef struct {
 typedef struct {
   float maxSpeed;
   float currentSpeed;
+  float jogSpeed;
   float acceleration;
   int32_t stepsToGo;
   uint32_t destinationSteps;
@@ -84,7 +85,7 @@ typedef struct {
   int32_t scaleSpeed[SCALES_COUNT];
   uint32_t cycles;
   uint32_t executionInterval;
-  uint16_t servoEnable;
+  uint16_t servoMode; // Servo modes: 0=disabled, 1=sync/index, 2=jog
 } fastData_t;
 
 typedef struct {
