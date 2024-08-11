@@ -265,15 +265,23 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   if (shared->fastData.servoMode != 0 && servoCyclesCounter == 0) {
     int32_t change = (int32_t)(shared->servo.desiredSteps) - (int32_t)shared->servo.currentSteps;
     // generate pulses to reach desired position with the motor
+    uint32_t direction = 1;
+
     if (change > 0) {
+      direction = 1;
       HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
-      HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
-      shared->servo.currentSteps++;
-    } else if (change < 0) {
-      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
-      HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
-      shared->servo.currentSteps--;
     }
+    if (change < 0) {
+      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
+      direction = -1;
+    }
+
+    if (direction == data->servoPreviousDirection && change != 0) {
+      HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
+      shared->servo.currentSteps += direction;
+    }
+
+    data->servoPreviousDirection = direction;
   }
 
   servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;

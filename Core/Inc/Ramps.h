@@ -111,6 +111,7 @@ typedef struct {
   deltaPosError_t scalesSyncDeltaPos[SCALES_COUNT];
   deltaPosError_t scalesSpeed[SCALES_COUNT];
   deltaPosError_t rampsDeltaPos;
+  uint32_t servoPreviousDirection;
 } rampsHandler_t;
 
 extern modbusHandler_t RampsModbusData;
