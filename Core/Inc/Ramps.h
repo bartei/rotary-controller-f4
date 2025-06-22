@@ -126,7 +126,7 @@ _Noreturn void userLedTask(__attribute__((unused)) void *argument);
 
 _Noreturn void servoEnableTask(void *argument);
 
-static void timServoEnableOnCallback(xTimerHandle pxTimer);
-static void timServoEnableOffCallback(xTimerHandle pxTimer);
+//static void timServoEnableOnCallback(xTimerHandle pxTimer);
+//static void timServoEnableOffCallback(xTimerHandle pxTimer);
 
 #endif

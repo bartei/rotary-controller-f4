@@ -343,8 +343,8 @@ _Noreturn void updateSpeedTask(void *argument) {
       // Update scale/spindle speed value
       deltaPositionAndError(
         rampsData->shared.scales[i].position,
+        1000,
         updateSpeedTaskTicks,
-        HAL_GetTickFreq(),
         &rampsData->scalesSpeed[i]
       );
       rampsData->shared.scales[i].speed = rampsData->scalesSpeed[i].scaledDelta;
