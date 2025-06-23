@@ -1,6 +1,6 @@
 # Rotary Controller (F4)
 
-[![Discord](https://img.shields.io/discord/1386014070632878100?style=social)](https://discord.gg/69Qr5PSu) [![Shop at Provvedo](https://img.shields.io/badge/Shop-Provvedo-blue?logo=shopify&style=flat-square)](https://www.provvedo.com/shop)
+[![Discord](https://img.shields.io/discord/1386014070632878100?style=social)](https://discord.gg/EDtgj7Yayr) [![Shop at Provvedo](https://img.shields.io/badge/Shop-Provvedo-blue?logo=shopify&style=flat-square)](https://www.provvedo.com/shop)
 
 
 This repository contains the **firmware** for a rotary controller board based on the **STM32F411** microcontroller ([github.com][1]). It provides Digital Read Out (DRO) and single-axis control for CNC-style rotary tables.
