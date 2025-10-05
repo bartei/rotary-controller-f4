@@ -86,6 +86,16 @@ typedef struct {
   uint32_t cycles;
   uint32_t executionInterval;
   uint16_t servoMode; // Servo modes: 0=disabled, 1=sync/index, 2=jog
+
+  // Assisted Threading support:
+  uint32_t threadDesiredSteps; // host writes absolute desired steps
+  uint8_t threadRequest;      // host writes 1 to request latch+wait
+  uint8_t threadReset;         // host writes 1 to reset the threading state
+  uint16_t threadSpindleIndex; // host sets which scale to watch
+  uint32_t threadPhaseRef;     // firmware stores latched phase
+  uint8_t threadHasPhase;      // 0 = not latched yet, 1 = latched
+  uint16_t threadEnabled;      // firmware uses as waiting flag
+  uint16_t threadTolerance;    // encoder-count tolerance for phase matching
 } fastData_t;
 
 typedef struct {

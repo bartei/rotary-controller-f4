@@ -259,6 +259,51 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
+  // Check for thread reset
+  if (shared->fastData.threadReset) {
+    shared->fastData.threadHasPhase = 0;
+    shared->fastData.threadEnabled = 0;
+    shared->fastData.threadReset = 0;
+  }
+
+  // Threading-phase request handling
+  if (shared->fastData.threadRequest == 1 && shared->fastData.threadEnabled == 0) {
+    uint16_t sp = shared->fastData.threadSpindleIndex;
+    if (sp >= SCALES_COUNT) sp = 0;
+
+    // latch only if we don't already have a reference
+    if (shared->fastData.threadHasPhase == 0) {
+      shared->fastData.threadPhaseRef = shared->fastData.scaleCurrent[sp];
+      shared->fastData.threadHasPhase = 1;
+    }
+
+    shared->fastData.threadEnabled = 1; // firmware is now waiting for match
+    shared->fastData.threadRequest = 0; // clear request so host sees acknowledgement
+  }
+
+  // If firmware is waiting on the phase, check for match
+  if (shared->fastData.threadEnabled) {
+    uint16_t sp = shared->fastData.threadSpindleIndex;
+    if (sp >= SCALES_COUNT) sp = 0;
+    uint32_t cur = shared->fastData.scaleCurrent[sp];
+    uint32_t ref = shared->fastData.threadPhaseRef;
+    // compute signed delta robust to wrapping
+    int32_t delta = (int32_t)((uint32_t)cur - (uint32_t)ref);
+    int32_t tol = (int32_t)(shared->fastData.threadTolerance); // host-configurable tolerance (counts)
+    if (tol < 0) tol = 0;
+
+    if (delta == 0 || (delta <= tol && delta >= -tol)) {
+      // matched -> start requested threading move
+      shared->servo.desiredSteps = shared->fastData.threadDesiredSteps;
+      shared->fastData.servoMode = 1; // ensure indexing mode
+      // clear waiting flags
+      shared->fastData.threadEnabled = 0;
+      // clear the request so host can detect completion
+      shared->fastData.threadRequest = 0;
+      // Optionally write back the phaseRef or increment an ack flag if needed
+    }
+  }
+
   if (shared->fastData.servoMode == 1) updateIndexingPosition(data);
   if (shared->fastData.servoMode == 2) updateJogPosition(data);
 
