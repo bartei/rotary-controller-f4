@@ -100,7 +100,6 @@ int main(void)
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
   // htim9 is used to generate the synchro motion
-
   RampsData.shared.scales[0].timerHandle = &htim1;
   RampsData.shared.scales[1].timerHandle = &htim2;
   RampsData.shared.scales[2].timerHandle = &htim3;

@@ -68,32 +68,31 @@ void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
 
 
 void RampsStart(rampsHandler_t *rampsData) {
-  rampsData->shared.servo.maxSpeed = 720;
-  rampsData->shared.servo.acceleration = 120;
+  for (int i = 0; i < SERVO_COUNT; i++) {
+    rampsData->servo[i].maxSpeed = 720;
+    rampsData->servo[i].acceleration = 120;
+
+    configureOutputPin(rampsData->servo[i].dirPort, rampsData->servo[i].dirPin);
+    configureOutputPin(rampsData->servo[i].stepPort, rampsData->servo[i].stepPin);
+  }
 
   for (int i = 0; i < SCALES_COUNT; i++) {
-    rampsData->shared.scales[i].syncRatioNum = 1;
-    rampsData->shared.scales[i].syncRatioDen = 100;
+    rampsData->scales[i].syncRatioNum = 1;
+    rampsData->scales[i].syncRatioDen = 100;
   }
 
   // Configure Pins
-  configureOutputPin(DIR_GPIO_PORT, DIR_PIN);
-  configureOutputPin(ENA_GPIO_PORT, ENA_PIN);
-  configureOutputPin(STEP_GPIO_PORT, STEP_PIN);
-  configureOutputPin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
-  configureOutputPin(SPARE_2_GPIO_PORT, SPARE_2_PIN);
-  configureOutputPin(SPARE_3_GPIO_PORT, SPARE_3_PIN);
+  configureOutputPin(rampsData->enaPort, rampsData->enaPin);
 
   // Configure tasks
   osThreadNew(userLedTask, rampsData, &ledTaskAttributes);
   osThreadNew(updateSpeedTask, rampsData, &speedTaskAttributes);
   osThreadNew(servoEnableTask, rampsData, &servoEnableTaskAttributes);
 
-
   // Initialize and start encoder timer, reset the sync flags
   for (int j = 0; j < SCALES_COUNT; ++j) {
-    initScaleTimer(rampsData->shared.scales[j].timerHandle);
-    HAL_TIM_Encoder_Start(rampsData->shared.scales[j].timerHandle, TIM_CHANNEL_ALL);
+    initScaleTimer(rampsData->scales[j].timerHandle);
+    HAL_TIM_Encoder_Start(rampsData->scales[j].timerHandle, TIM_CHANNEL_ALL);
   }
 
   // Enable debug cycle counter
@@ -107,8 +106,8 @@ void RampsStart(rampsHandler_t *rampsData) {
   RampsModbusData.u8id = MODBUS_ADDRESS;
   RampsModbusData.u16timeOut = 1000;
   RampsModbusData.EN_Port = NULL;
-  RampsModbusData.u16regs = (uint16_t *) (&rampsData->shared);
-  RampsModbusData.u16regsize = sizeof(rampsData->shared) / sizeof(uint16_t);
+  RampsModbusData.u16regs = (uint16_t *) (rampsData);
+  RampsModbusData.u16regsize = sizeof(&rampsData) / sizeof(uint16_t);
   RampsModbusData.xTypeHW = USART_HW;
   ModbusInit(&RampsModbusData);
   ModbusStart(&RampsModbusData);
@@ -117,8 +116,11 @@ void RampsStart(rampsHandler_t *rampsData) {
   HAL_TIM_Base_Start_IT(rampsData->synchroRefreshTimer);
 }
 
-static inline void
-deltaPositionAndError(int32_t currentValue, int32_t ratioNum, int32_t ratioDen, deltaPosError_t *data) {
+static inline void deltaPositionAndError(
+        int32_t currentValue,
+        int32_t ratioNum,
+        int32_t ratioDen,
+        deltaPosError_t *data) {
   int32_t startValue = (int16_t) (currentValue - data->oldPosition) * ratioNum + data->error;
   data->oldPosition = currentValue;
   data->scaledDelta = (int32_t) (startValue / ratioDen);
@@ -126,168 +128,172 @@ deltaPositionAndError(int32_t currentValue, int32_t ratioNum, int32_t ratioDen, 
 }
 
 static inline void updateIndexingPosition(rampsHandler_t *data) {
-  rampsSharedData_t *shared = &(data->shared);
-  float interval = (float) shared->executionInterval / 100000000.0f;
-  float stopDistance = (shared->servo.currentSpeed * shared->servo.currentSpeed / shared->servo.acceleration) / 2;
+  float interval = (float) data->executionInterval / 100000000.0f;
 
-  // Accelerate Pos
-  if (shared->servo.stepsToGo > 0) {
-    if ((float)shared->servo.stepsToGo > stopDistance && shared->servo.currentSpeed < shared->servo.maxSpeed) {
-      shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      // max speed
-      if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed = shared->servo.maxSpeed;
+  for (int i = 0; i < SERVO_COUNT; i++) {
+    float stopDistance = (data->servo[i].currentSpeed * data->servo[i].currentSpeed / data->servo[i].acceleration) / 2;
+
+    // Accelerate Pos
+    if (data->servo[i].stepsToGo > 0) {
+      if ((float)data->servo[i].stepsToGo > stopDistance && data->servo[i].currentSpeed < data->servo[i].maxSpeed) {
+        data->servo[i].currentSpeed += data->servo[i].acceleration * interval;
+        // max speed
+        if (data->servo[i].currentSpeed > data->servo[i].maxSpeed) {
+          data->servo[i].currentSpeed = data->servo[i].maxSpeed;
+        }
+      }
+
+      // Decelerate Pos
+      if ((float)data->servo[i].stepsToGo < stopDistance) {
+        data->servo[i].currentSpeed -= data->servo[i].acceleration * interval;
+        if (data->servo[i].currentSpeed < 0) {
+          data->servo[i].currentSpeed = 0;
+        }
       }
     }
 
-    // Decelerate Pos
-    if ((float)shared->servo.stepsToGo < stopDistance) {
-      shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      if (shared->servo.currentSpeed < 0) {
-        shared->servo.currentSpeed = 0;
+    if (data->servo[i].stepsToGo < 0) {
+      // Accelerate Neg
+      if (-(float)data->servo[i].stepsToGo > stopDistance && -data->servo[i].currentSpeed < data->servo[i].maxSpeed) {
+        data->servo[i].currentSpeed -= data->servo[i].acceleration * interval;
+        if (-data->servo[i].currentSpeed > data->servo[i].maxSpeed) {
+          data->servo[i].currentSpeed = -data->servo[i].maxSpeed;
+        }
+      }
+
+      // Decelerate Neg
+      if (-(float)data->servo[i].stepsToGo < stopDistance) {
+        data->servo[i].currentSpeed += data->servo[i].acceleration * interval;
+        if (data->servo[i].currentSpeed > 0) {
+          data->servo[i].currentSpeed = 0;
+        }
       }
     }
+
+    if (data->servo[i].stepsToGo == 0) {
+      // Security measure, end of travel
+      data->servo[i].currentSpeed = 0;
+    } else {
+      int32_t positionIncrement = ((int32_t)((float)data->servo[i].currentSpeed * (float)data->executionInterval + (float)data->rampsDeltaPos.error) / 100000000);
+      data->rampsDeltaPos.error = ((int32_t)((float)data->servo[i].currentSpeed * (float)data->executionInterval + (float)data->rampsDeltaPos.error) % 100000000);
+      data->servo[i].desiredSteps += positionIncrement;
+      data->servo[i].stepsToGo -= positionIncrement;
+      data->fastData.stepsToGo = data->servo[i].stepsToGo;
+    }
+
   }
 
-  if (shared->servo.stepsToGo < 0) {
-    // Accelerate Neg
-    if (-(float)shared->servo.stepsToGo > stopDistance && -shared->servo.currentSpeed < shared->servo.maxSpeed) {
-      shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed = -shared->servo.maxSpeed;
-      }
-    }
-
-    // Decelerate Neg
-    if (-(float)shared->servo.stepsToGo < stopDistance) {
-      shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      if (shared->servo.currentSpeed > 0) {
-        shared->servo.currentSpeed = 0;
-      }
-    }
-  }
-
-  if (shared->servo.stepsToGo == 0) {
-    // Security measure, end of travel
-    shared->servo.currentSpeed = 0;
-  } else {
-    int32_t positionIncrement = ((int32_t)((float)shared->servo.currentSpeed * (float)shared->executionInterval + (float)data->rampsDeltaPos.error) / 100000000);
-    data->rampsDeltaPos.error = ((int32_t)((float)shared->servo.currentSpeed * (float)shared->executionInterval + (float)data->rampsDeltaPos.error) % 100000000);
-    shared->servo.desiredSteps += positionIncrement;
-    shared->servo.stepsToGo -= positionIncrement;
-    shared->fastData.stepsToGo = shared->servo.stepsToGo;
-  }
 }
 
 static inline void updateJogPosition(rampsHandler_t *data) {
-  rampsSharedData_t *shared = &(data->shared);
-  float interval = (float) shared->executionInterval / 100000000.0f;
+  float interval = (float) data->executionInterval / 100000000.0f;
 
-  // Start Pos
-  if (shared->servo.jogSpeed > 0) {
-    if (shared->servo.currentSpeed < shared->servo.jogSpeed) {
-      shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      // max speed
-      if (shared->servo.currentSpeed > shared->servo.jogSpeed) {
-        shared->servo.currentSpeed = shared->servo.jogSpeed;
+  for (int i = 0; i < SERVO_COUNT; i++) {
+    // Start Pos
+    if (data->servo[i].jogSpeed > 0) {
+      if (data->servo[i].currentSpeed < data->servo[i].jogSpeed) {
+        data->servo[i].currentSpeed += data->servo[i].acceleration * interval;
+        // max speed
+        if (data->servo[i].currentSpeed > data->servo[i].jogSpeed) {
+          data->servo[i].currentSpeed = data->servo[i].jogSpeed;
+        }
       }
     }
-  }
 
-  // Start Neg
-  if (shared->servo.jogSpeed < 0) {
-    if (shared->servo.currentSpeed > shared->servo.jogSpeed) {
-      shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      if (shared->servo.currentSpeed < shared->servo.jogSpeed) {
-        shared->servo.currentSpeed = shared->servo.jogSpeed;
+    // Start Neg
+    if (data->servo[i].jogSpeed < 0) {
+      if (data->servo[i].currentSpeed > data->servo[i].jogSpeed) {
+        data->servo[i].currentSpeed -= data->servo[i].acceleration * interval;
+        if (data->servo[i].currentSpeed < data->servo[i].jogSpeed) {
+          data->servo[i].currentSpeed = data->servo[i].jogSpeed;
+        }
       }
     }
-  }
 
-  // Stop Pos/Neg
-  if (shared->servo.currentSpeed > 0) {
-    if (shared->servo.currentSpeed > shared->servo.jogSpeed) {
-      shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      if (shared->servo.currentSpeed < 0) shared->servo.currentSpeed = 0;
+    // Stop Pos/Neg
+    if (data->servo[i].currentSpeed > 0) {
+      if (data->servo[i].currentSpeed > data->servo[i].jogSpeed) {
+        data->servo[i].currentSpeed -= data->servo[i].acceleration * interval;
+        if (data->servo[i].currentSpeed < 0) data->servo[i].currentSpeed = 0;
+      }
     }
-  }
 
-  if (shared->servo.currentSpeed < 0) {
-    if (shared->servo.currentSpeed < shared->servo.jogSpeed) {
-      shared->servo.currentSpeed += shared->servo.acceleration * interval;
-      if (shared->servo.currentSpeed > 0) shared->servo.currentSpeed = 0;
+    if (data->servo[i].currentSpeed < 0) {
+      if (data->servo[i].currentSpeed < data->servo[i].jogSpeed) {
+        data->servo[i].currentSpeed += data->servo[i].acceleration * interval;
+        if (data->servo[i].currentSpeed > 0) data->servo[i].currentSpeed = 0;
+      }
     }
+
+    int32_t positionIncrement = ((int32_t)((float)data->servo[i].currentSpeed * (float)data->executionInterval + (float)data->rampsDeltaPos.error) / 100000000);
+    data->rampsDeltaPos.error = ((int32_t)((float)data->servo[i].currentSpeed * (float)data->executionInterval + (float)data->rampsDeltaPos.error) % 100000000);
+    data->servo[i].desiredSteps += positionIncrement;
   }
 
-  int32_t positionIncrement = ((int32_t)((float)shared->servo.currentSpeed * (float)shared->executionInterval + (float)data->rampsDeltaPos.error) / 100000000);
-  data->rampsDeltaPos.error = ((int32_t)((float)shared->servo.currentSpeed * (float)shared->executionInterval + (float)data->rampsDeltaPos.error) % 100000000);
-  shared->servo.desiredSteps += positionIncrement;
 }
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
-//  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
-//  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
   uint32_t start = DWT->CYCCNT;
+  data->executionIntervalPrevious = data->executionIntervalCurrent;
+  data->executionIntervalCurrent = DWT->CYCCNT;
+  data->executionInterval = data->executionIntervalCurrent - data->executionIntervalPrevious;
+  data->fastData.executionInterval = data->executionInterval;
+
   // Reset the step pin as soon as possible
-  HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
-  rampsSharedData_t *shared = &(data->shared);
-  shared->executionIntervalPrevious = shared->executionIntervalCurrent;
-  shared->executionIntervalCurrent = DWT->CYCCNT;
-  shared->executionInterval = shared->executionIntervalCurrent - shared->executionIntervalPrevious;
-  shared->fastData.executionInterval = shared->executionInterval;
+  for (int i = 0; i < SERVO_COUNT; i++) {
+    data->servo[i].stepPort->BSRR = (uint32_t)data->servo[i].stepPin << 16;
+  }
 
   for (int i = 0; i < SCALES_COUNT; i++) {
     data->scalesDeltaPos[i].oldPosition = data->scalesDeltaPos[i].position;
-    data->scalesDeltaPos[i].position = __HAL_TIM_GET_COUNTER(data->shared.scales[i].timerHandle);
+    data->scalesDeltaPos[i].position = __HAL_TIM_GET_COUNTER(data->scales[i].timerHandle);
     data->scalesDeltaPos[i].delta = (int16_t) (data->scalesDeltaPos[i].position - data->scalesDeltaPos[i].oldPosition);
-    shared->scales[i].position += data->scalesDeltaPos[i].delta;
+    data->scales[i].position += data->scalesDeltaPos[i].delta;
+    data->fastData.scaleCurrent[i] = data->scales[i].position;
 
-    // calculate delta for sync ratio configured for the current scale
-    deltaPositionAndError(
-      shared->scales[i].position,
-      shared->scales[i].syncRatioNum,
-      shared->scales[i].syncRatioDen,
-      &data->scalesSyncDeltaPos[i]
-    );
-
-    // request motion only if sync is enabled
-    if (shared->scales[i].syncEnable != 0) {
-      shared->servo.desiredSteps += data->scalesSyncDeltaPos[i].scaledDelta;
-    }
+// TODO: This has to go into the servo sync function not here and the parameters are now different
+//    // calculate delta for sync ratio configured for the current scale
+//    deltaPositionAndError(
+//      data->scales[i].position,
+//      data->scales[i].syncRatioNum,
+//      data->scales[i].syncRatioDen,
+//      &data->scalesSyncDeltaPos[i]
+//    );
+//
+//    // request motion only if sync is enabled
+//    if (data->scales[i].syncEnable != 0) {
+//      data->servo.desiredSteps += data->scalesSyncDeltaPos[i].scaledDelta;
+//    }
 
     // Update fastData current position
-    shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
-  if (shared->fastData.servoMode == 1) updateIndexingPosition(data);
-  if (shared->fastData.servoMode == 2) updateJogPosition(data);
+  if (data->fastData.servoMode == 1) updateIndexingPosition(data);
+  if (data->fastData.servoMode == 2) updateJogPosition(data);
 
-  if (shared->fastData.servoMode != 0 && servoCyclesCounter == 0) {
-    int32_t change = (int32_t)(shared->servo.desiredSteps) - (int32_t)shared->servo.currentSteps;
-    // generate pulses to reach desired position with the motor
-    uint32_t direction = 1;
+  if (data->fastData.servoMode != 0 && servoCyclesCounter == 0) {
+    for (int i = 0; i < SERVO_COUNT; i++) {
+      int32_t change = (int32_t)(data->servo[i].desiredSteps) - (int32_t)data->servo[i].currentSteps;
+      if (change > 0) {
+        data->servo[i].currentDirection = 1;
+        data->servo[i].dirPort->BSRR = data->servo[i].dirPin;
+      }
+      if (change < 0) {
+        data->servo[i].currentDirection = -1;
+        data->servo[i].dirPort->BSRR = data->servo[i].dirPin << 16;
+      }
+      if (data->servo[i].currentDirection == data->servo[i].previousDirection && change != 0) {
+        data->servo[i].stepPort->BSRR = data->servo[i].stepPin << 16;
+        data->servo[i].currentSteps += data->servo[i].currentDirection;
+        data->servo[i].previousDirection = data->servo[i].currentDirection;
+      }
 
-    if (change > 0) {
-      direction = 1;
-      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
     }
-    if (change < 0) {
-      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
-      direction = -1;
-    }
 
-    if (direction == data->servoPreviousDirection && change != 0) {
-      HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
-      shared->servo.currentSteps += direction;
-    }
-
-    data->servoPreviousDirection = direction;
   }
 
   servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;
-
-  shared->executionCycles = DWT->CYCCNT - start;
-  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_RESET);
+  data->executionCycles = DWT->CYCCNT - start;
 }
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
@@ -317,45 +323,49 @@ _Noreturn void updateSpeedTask(void *argument) {
     osDelay(updateSpeedTaskTicks);
 
     // Update fast access variables
-    rampsData->shared.fastData.cycles = rampsData->shared.executionCycles;
-    rampsData->shared.fastData.servoCurrent = rampsData->shared.servo.currentSteps;
-    rampsData->shared.fastData.servoDesired = rampsData->shared.servo.desiredSteps;
+    rampsData->fastData.cycles = rampsData->executionCycles;
+//    rampsData->fastData.servoCurrent = rampsData->servo.currentSteps;
+//    rampsData->fastData.servoDesired = rampsData->servo.desiredSteps;
 
     // If maximum speed has been changed, update the motor timer accordingly
-    float clock_freq = 100000000.0f / ((float) rampsData->synchroRefreshTimer->Init.Prescaler + 1) /
-                       (float) (rampsData->synchroRefreshTimer->Init.Period + 1);
+//    float clock_freq = 100000000.0f / ((float) rampsData->synchroRefreshTimer->Init.Prescaler + 1) /
+//                       (float) (rampsData->synchroRefreshTimer->Init.Period + 1);
 
     // Clamping value for max speed to the maximum allowed by the current timer refresh rate from the sync routine
-    if (rampsData->shared.servo.maxSpeed > 100000) {
-      rampsData->shared.servo.maxSpeed = 100000;
+    for (int i = 0; i < SERVO_COUNT; i++) {
+      if (rampsData->servo[i].maxSpeed > 100000) {
+        rampsData->servo[i].maxSpeed = 100000;
+      }
     }
 
-    float newPeriod = floorf(clock_freq / rampsData->shared.servo.maxSpeed);
-    if (newPeriod > (float) UINT16_MAX) {
-      newPeriod = 65535;
-    }
-    if (newPeriod < 1) {
-      newPeriod = 0;
-    }
-    servoCycles = (uint16_t) newPeriod;
+//    float newPeriod = floorf(clock_freq / rampsData->servo.maxSpeed);
+//    if (newPeriod > (float) UINT16_MAX) {
+//      newPeriod = 65535;
+//    }
+//    if (newPeriod < 1) {
+//      newPeriod = 0;
+//    }
+//    servoCycles = (uint16_t) newPeriod;
+    // TODO: Perhaps consider using the max value from all the speeds from all the servos?
+    // TODO: Perhaps move this variable into the rampsdata structure so it can be monitored from ui
+    servoCycles = 0;
 
     for (int i = 0; i < SCALES_COUNT; i++) {
       // Update scale/spindle speed value
       deltaPositionAndError(
-        rampsData->shared.scales[i].position,
+        rampsData->scales[i].position,
         updateSpeedTaskTicks,
         HAL_GetTickFreq(),
         &rampsData->scalesSpeed[i]
       );
-      rampsData->shared.scales[i].speed = rampsData->scalesSpeed[i].scaledDelta;
-      rampsData->shared.fastData.scaleSpeed[i] = rampsData->scalesSpeed[i].scaledDelta;
+      rampsData->scales[i].speed = rampsData->scalesSpeed[i].scaledDelta;
+      rampsData->fastData.scaleSpeed[i] = rampsData->scalesSpeed[i].scaledDelta;
     }
   }
 }
 
 _Noreturn void servoEnableTask(void *argument) {
   rampsHandler_t *rampsData = (rampsHandler_t *) argument;
-  rampsSharedData_t *shared = (rampsSharedData_t *) &rampsData->shared;
   uint32_t previousPosition = 0;
 
   for (;;) {
@@ -363,16 +373,21 @@ _Noreturn void servoEnableTask(void *argument) {
 
     bool anySyncMotionEnabled = false;
     for (int i = 0; i < SCALES_COUNT; i++) {
-      anySyncMotionEnabled = anySyncMotionEnabled || (shared->scales[i].syncEnable != 0);
+      anySyncMotionEnabled = anySyncMotionEnabled || (rampsData->scales[i].syncEnable != 0);
     }
 
-    if (anySyncMotionEnabled && rampsData->shared.fastData.servoMode != 2)
-      rampsData->shared.fastData.servoMode = 1;
+    if (anySyncMotionEnabled && rampsData->fastData.servoMode != 2)
+      rampsData->fastData.servoMode = 1;
 
-    rampsData->shared.fastData.servoSpeed = (float)(int32_t)(rampsData->shared.servo.currentSteps - previousPosition) * 10;
-    previousPosition = rampsData->shared.servo.currentSteps;
+//    rampsData->shared.fastData.servoSpeed = (float)(int32_t)(rampsData->shared.servo.currentSteps - previousPosition) * 10;
+//    previousPosition = rampsData->shared.servo.currentSteps;
 
-    if (shared->fastData.servoMode != 0) HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_RESET);
-    if (shared->fastData.servoMode == 0) HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_SET);
+    if (rampsData->fastData.servoMode != 0)
+      rampsData->enaPort->BSRR = rampsData->enaPin << 16;
+//      HAL_GPIO_WritePin(shared->enaPort, shared->enaPin, GPIO_PIN_RESET);
+
+    if (rampsData->fastData.servoMode == 0)
+      rampsData->enaPort->BSRR = rampsData->enaPin;
+//      HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_SET);
   }
 }
