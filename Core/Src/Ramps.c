@@ -292,12 +292,17 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
   uint16_t oldInCnt = 0;
+  uint8_t blinkInterval = 0;
 
   for (;;) {
     osDelay(50);
+    blinkInterval = (blinkInterval + 1) % 10;
+    if (blinkInterval == 0) {
+      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+    }
+
     if (oldInCnt != RampsModbusData.u16InCnt) {
       oldInCnt = RampsModbusData.u16InCnt;
-      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
       HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
       osDelay(25);
       HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
