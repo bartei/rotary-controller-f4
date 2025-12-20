@@ -100,12 +100,28 @@ int main(void)
   // htim3 is used in encoder mode
   // htim4 is used in encoder mode
   // htim9 is used to generate the synchro motion
-  RampsData.shared.scales[0].timerHandle = &htim1;
-  RampsData.shared.scales[1].timerHandle = &htim2;
-  RampsData.shared.scales[2].timerHandle = &htim3;
-  RampsData.shared.scales[3].timerHandle = &htim4;
+
+  RampsData.scales[0].timerHandle = &htim1;
+  RampsData.scales[1].timerHandle = &htim2;
+  RampsData.scales[2].timerHandle = &htim3;
+  RampsData.scales[3].timerHandle = &htim4;
   RampsData.synchroRefreshTimer = &htim9;
   RampsData.modbusUart = &huart1;
+  RampsData.usrLedPort = GPIOB;
+  RampsData.usrLedPin = GPIO_PIN_12;
+  RampsData.enaPort = GPIOB;
+  RampsData.enaPin = GPIO_PIN_15;
+
+  RampsData.servo[0].stepPort = GPIOA;
+  RampsData.servo[0].stepPin = GPIO_PIN_0;
+  RampsData.servo[0].dirPort = GPIOB;
+  RampsData.servo[0].dirPin = GPIO_PIN_14;
+
+  RampsData.servo[1].stepPort = GPIOA;
+  RampsData.servo[1].stepPin = GPIO_PIN_1;
+  RampsData.servo[1].dirPort = GPIOA;
+  RampsData.servo[1].dirPin = GPIO_PIN_3;
+
   RampsStart(&RampsData);
 
   /* USER CODE END 2 */

@@ -25,29 +25,6 @@
 #include "Scales.h"
 
 #define MODBUS_ADDRESS 17
-
-#define STEP_PIN GPIO_PIN_0
-#define STEP_GPIO_PORT GPIOA
-
-#define DIR_PIN GPIO_PIN_14
-#define DIR_GPIO_PORT GPIOB
-
-#define ENA_PIN GPIO_PIN_15
-#define ENA_GPIO_PORT GPIOB
-#define ENA_DELAY_MS 500
-
-#define USR_LED_Pin GPIO_PIN_12
-#define USR_LED_GPIO_Port GPIOB
-
-#define SPARE_1_PIN GPIO_PIN_1
-#define SPARE_1_GPIO_PORT GPIOA
-
-#define SPARE_2_PIN GPIO_PIN_3
-#define SPARE_2_GPIO_PORT GPIOA
-
-#define SPARE_3_PIN GPIO_PIN_4
-#define SPARE_3_GPIO_PORT GPIOA
-
 #define SERVO_COUNT 3
 
 
@@ -81,7 +58,7 @@ typedef struct {
     int32_t previousDirection;
 
     GPIO_TypeDef *stepPort;
-    uint16_t stepPin;      // e.g., GPIO_PIN_5
+    uint16_t stepPin;
     GPIO_TypeDef *dirPort;
     uint16_t dirPin;
 
@@ -115,6 +92,9 @@ typedef struct {
     GPIO_TypeDef *enaPort;
     uint16_t enaPin;
 
+    GPIO_TypeDef *usrLedPort;
+    uint16_t usrLedPin;
+
     servo_t servo[SERVO_COUNT];
     input_t scales[SCALES_COUNT];
 
@@ -139,7 +119,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data);
 
 _Noreturn void updateSpeedTask(void *argument);
 
-_Noreturn void userLedTask(__attribute__((unused)) void *argument);
+_Noreturn void userLedTask(void *argument);
 
 _Noreturn void servoEnableTask(void *argument);
 

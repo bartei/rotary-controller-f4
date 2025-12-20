@@ -74,6 +74,8 @@ void RampsStart(rampsHandler_t *rampsData) {
 
     configureOutputPin(rampsData->servo[i].dirPort, rampsData->servo[i].dirPin);
     configureOutputPin(rampsData->servo[i].stepPort, rampsData->servo[i].stepPin);
+    configureOutputPin(rampsData->enaPort, rampsData->enaPin);
+    configureOutputPin(rampsData->usrLedPort, rampsData->usrLedPin);
   }
 
   for (int i = 0; i < SCALES_COUNT; i++) {
@@ -296,17 +298,23 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   data->executionCycles = DWT->CYCCNT - start;
 }
 
-_Noreturn void userLedTask(__attribute__((unused)) void *argument) {
+_Noreturn void userLedTask(void *argument) {
+  rampsHandler_t *data = (rampsHandler_t *) argument;
+
   uint16_t oldInCnt = 0;
+  uint8_t blinkCounter = 0;
 
   for (;;) {
     osDelay(50);
+    blinkCounter++;
+
     if (oldInCnt != RampsModbusData.u16InCnt) {
       oldInCnt = RampsModbusData.u16InCnt;
-      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
-      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
-      osDelay(25);
-      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
+      data->usrLedPort->BSRR = data->usrLedPin << 16;
+      osDelay(10);
+      data->usrLedPort->BSRR = data->usrLedPin;
+    } else {
+      if (blinkCounter % 10 == 0) data->usrLedPort->ODR ^= data->usrLedPin;
     }
   }
 
