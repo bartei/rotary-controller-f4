@@ -86,17 +86,21 @@ typedef struct {
   uint32_t cycles;
   uint32_t executionInterval;
   uint16_t servoMode; // Servo modes: 0=disabled, 1=sync/index, 2=jog
+} fastData_t;
 
-  // Assisted Threading support:
-  uint32_t threadDesiredSteps; // host writes absolute desired steps
+
+typedef struct {
   uint16_t threadRequest;      // host writes 1 to request latch+wait
   uint16_t threadReset;         // host writes 1 to reset the threading state
-  uint16_t threadSpindleIndex; // host sets which scale to watch
-  uint32_t threadPhaseRef;     // firmware stores latched phase
-  uint16_t threadHasPhase;      // 0 = not latched yet, 1 = latched
+  uint16_t spindleScaleIndex; // host sets which scale to watch
+  uint16_t threadPhaseActive;      // 0 = not latched yet, 1 = latched
   uint16_t threadEnabled;      // firmware uses as waiting flag
-  uint16_t threadTolerance;    // encoder-count tolerance for phase matching
-} fastData_t;
+  uint16_t spindlePhaseTolerance;    // encoder-count tolerance for phase matching
+  uint32_t threadDesiredSteps; // host writes absolute desired steps
+  uint32_t spindleCountsPerRev;   // spindle scale counts per revolution
+  int32_t threadPhaseRef;     // firmware stores latched phase
+  int32_t currentThreadPhase;   // current phase for debug purposes
+} assistedThreadingData_t;
 
 typedef struct {
   uint32_t executionInterval;
@@ -105,6 +109,7 @@ typedef struct {
   uint32_t executionCycles;
   servo_t servo;
   input_t scales[SCALES_COUNT];
+  assistedThreadingData_t assistedThreadingData;
   fastData_t fastData;
 } rampsSharedData_t;
 

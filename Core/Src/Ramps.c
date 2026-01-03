@@ -224,6 +224,110 @@ static inline void updateJogPosition(rampsHandler_t *data) {
   shared->servo.desiredSteps += positionIncrement;
 }
 
+static inline int32_t getSpindlePhase(
+    int32_t encoderPosition,
+    uint32_t countsPerRev
+) {
+    if (countsPerRev == 0) {
+        return 0;
+    }
+
+    int32_t phase = encoderPosition % (int32_t)countsPerRev;
+    if (phase < 0) {
+        phase += countsPerRev;
+    }
+
+    return phase;
+}
+
+static inline int32_t computeServoStepTolerance(const rampsSharedData_t *shared)
+{
+    // Maximum possible step movement in ONE control cycle
+    int32_t maxStepThisCycle =
+        (int32_t)(
+            fabsf(shared->servo.currentSpeed) *
+            (float)shared->executionInterval /
+            100000000.0f
+        );
+
+    // +1 to account for truncation / integer rounding
+    return maxStepThisCycle + 1;
+}
+
+static inline void applyAssistedThreading(rampsSharedData_t *shared)
+{
+  uint16_t sp = shared->assistedThreadingData.spindleScaleIndex;
+  if (sp >= SCALES_COUNT) sp = 0;
+  input_t *spindleScale = &shared->scales[sp];
+
+  shared->assistedThreadingData.currentThreadPhase =
+    getSpindlePhase(
+      spindleScale->position,
+      shared->assistedThreadingData.spindleCountsPerRev
+    );
+
+  // Check for thread reset
+  if (shared->assistedThreadingData.threadReset == 1) {
+    shared->assistedThreadingData.threadPhaseActive = 0;
+    shared->assistedThreadingData.threadEnabled = 0;
+    shared->assistedThreadingData.threadReset = 2; // set to 2 to indicate reset done
+    spindleScale->syncEnable = 0;
+  }
+
+  // Threading-phase request handling
+  if (shared->assistedThreadingData.threadRequest == 1 && shared->assistedThreadingData.threadEnabled == 0) {
+    // latch only if we don't already have a reference
+    if (shared->assistedThreadingData.threadPhaseActive == 0) {
+      shared->assistedThreadingData.threadPhaseRef =
+      getSpindlePhase(
+        spindleScale->position,
+        shared->assistedThreadingData.spindleCountsPerRev
+      );
+      shared->assistedThreadingData.threadPhaseActive = 1;
+    }
+
+    shared->assistedThreadingData.threadEnabled = 1; // firmware is now waiting for match
+    shared->assistedThreadingData.threadRequest = 0; // clear request so host sees acknowledgement
+  }
+
+  // If firmware is waiting on the phase, check for match
+  if (shared->assistedThreadingData.threadEnabled == 1) {
+    int32_t delta =
+      shared->assistedThreadingData.currentThreadPhase -
+      shared->assistedThreadingData.threadPhaseRef;
+
+    // wrap-aware delta
+    int32_t half = shared->assistedThreadingData.spindleCountsPerRev / 2;
+    if (delta > half)  delta -= shared->assistedThreadingData.spindleCountsPerRev;
+    if (delta < -half) delta += shared->assistedThreadingData.spindleCountsPerRev;
+
+    int32_t tol = (int32_t)(shared->assistedThreadingData.spindlePhaseTolerance); // host-configurable tolerance (counts)
+
+    if (delta == 0 || (delta <= tol && delta >= -tol)) {
+      // matched -> start requested threading move
+      spindleScale->syncEnable = 1; // enable sync motion for the spindle scale
+      shared->assistedThreadingData.threadPhaseActive = 1;
+
+      // clear waiting flags
+      shared->assistedThreadingData.threadEnabled = 0;
+      // clear the request so host can detect completion
+      shared->assistedThreadingData.threadRequest = 0;
+    }
+  }
+
+  if (shared->assistedThreadingData.threadEnabled == 0 && shared->assistedThreadingData.threadPhaseActive == 1) {
+    int32_t delta = shared->servo.currentSteps - shared->assistedThreadingData.threadDesiredSteps;
+    int32_t tol = computeServoStepTolerance(shared);
+
+    if (delta == 0 || (delta <= tol && delta >= -tol)) {
+      // completed move, clear phase reference
+      shared->assistedThreadingData.threadPhaseActive = 0;
+      spindleScale->syncEnable = 0;
+    }
+  }
+}
+
+
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 //  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
 //  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
@@ -259,52 +363,13 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
-  // Check for thread reset
-  if (shared->fastData.threadReset) {
-    shared->fastData.threadHasPhase = 0;
-    shared->fastData.threadEnabled = 0;
-    shared->fastData.threadReset = 0;
-  }
-
-  // Threading-phase request handling
-  if (shared->fastData.threadRequest == 1 && shared->fastData.threadEnabled == 0) {
-    uint16_t sp = shared->fastData.threadSpindleIndex;
-    if (sp >= SCALES_COUNT) sp = 0;
-
-    // latch only if we don't already have a reference
-    if (shared->fastData.threadHasPhase == 0) {
-      shared->fastData.threadPhaseRef = shared->fastData.scaleCurrent[sp];
-      shared->fastData.threadHasPhase = 1;
+  if (shared->fastData.servoMode == 1){
+    if (shared->assistedThreadingData.threadEnabled == 1 || shared->assistedThreadingData.threadRequest == 1 || shared->assistedThreadingData.threadPhaseActive == 1) {
+      applyAssistedThreading(shared);
     }
-
-    shared->fastData.threadEnabled = 1; // firmware is now waiting for match
-    shared->fastData.threadRequest = 0; // clear request so host sees acknowledgement
+    updateIndexingPosition(data);
   }
 
-  // If firmware is waiting on the phase, check for match
-  if (shared->fastData.threadEnabled) {
-    uint16_t sp = shared->fastData.threadSpindleIndex;
-    if (sp >= SCALES_COUNT) sp = 0;
-    uint32_t cur = shared->fastData.scaleCurrent[sp];
-    uint32_t ref = shared->fastData.threadPhaseRef;
-    // compute signed delta robust to wrapping
-    int32_t delta = (int32_t)((uint32_t)cur - (uint32_t)ref);
-    int32_t tol = (int32_t)(shared->fastData.threadTolerance); // host-configurable tolerance (counts)
-    if (tol < 0) tol = 0;
-
-    if (delta == 0 || (delta <= tol && delta >= -tol)) {
-      // matched -> start requested threading move
-      shared->servo.desiredSteps = shared->fastData.threadDesiredSteps;
-      shared->fastData.servoMode = 1; // ensure indexing mode
-      // clear waiting flags
-      shared->fastData.threadEnabled = 0;
-      // clear the request so host can detect completion
-      shared->fastData.threadRequest = 0;
-      // Optionally write back the phaseRef or increment an ack flag if needed
-    }
-  }
-
-  if (shared->fastData.servoMode == 1) updateIndexingPosition(data);
   if (shared->fastData.servoMode == 2) updateJogPosition(data);
 
   if (shared->fastData.servoMode != 0 && servoCyclesCounter == 0) {
