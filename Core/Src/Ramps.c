@@ -306,6 +306,9 @@ static inline void applyAssistedThreading(rampsSharedData_t *shared)
     if (delta == 0 || (delta <= tol && delta >= -tol)) {
       // matched -> start requested threading move
       spindleScale->syncEnable = 1; // enable sync motion for the spindle scale
+
+      shared->assistedThreadingData.threadStartSteps = shared->servo.currentSteps;
+
       shared->assistedThreadingData.threadPhaseActive = 1;
 
       // clear waiting flags
@@ -316,10 +319,14 @@ static inline void applyAssistedThreading(rampsSharedData_t *shared)
   }
 
   if (shared->assistedThreadingData.threadEnabled == 0 && shared->assistedThreadingData.threadPhaseActive == 1) {
-    int32_t delta = shared->servo.currentSteps - shared->assistedThreadingData.threadDesiredSteps;
+    int32_t traveled = shared->servo.currentSteps - shared->assistedThreadingData.threadStartSteps;
+
+    int32_t remaining =
+      shared->assistedThreadingData.threadRemainingSteps - traveled;
+
     int32_t tol = computeServoStepTolerance(shared);
 
-    if (delta == 0 || (delta <= tol && delta >= -tol)) {
+    if (remaining == 0 || (remaining <= tol && remaining >= -tol)) {
       // completed move, clear phase reference
       shared->assistedThreadingData.threadPhaseActive = 0;
       spindleScale->syncEnable = 0;

@@ -96,7 +96,8 @@ typedef struct {
   uint16_t threadPhaseActive;      // 0 = not latched yet, 1 = latched
   uint16_t threadEnabled;      // firmware uses as waiting flag
   uint16_t spindlePhaseTolerance;    // encoder-count tolerance for phase matching
-  uint32_t threadDesiredSteps; // host writes absolute desired steps
+  int32_t threadRemainingSteps;   // SIGNED distance remaining
+  uint32_t threadStartSteps;       // servo.currentSteps at latch
   uint32_t spindleCountsPerRev;   // spindle scale counts per revolution
   int32_t threadPhaseRef;     // firmware stores latched phase
   int32_t currentThreadPhase;   // current phase for debug purposes
