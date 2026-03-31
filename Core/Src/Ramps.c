@@ -224,12 +224,124 @@ static inline void updateJogPosition(rampsHandler_t *data) {
   shared->servo.desiredSteps += positionIncrement;
 }
 
+static inline int32_t getSpindlePhase(
+    int32_t encoderPosition,
+    uint32_t countsPerRev
+) {
+    if (countsPerRev == 0) {
+        return 0;
+    }
+
+    int32_t phase = encoderPosition % (int32_t)countsPerRev;
+    if (phase < 0) {
+        phase += countsPerRev;
+    }
+
+    return phase;
+}
+
+static inline int32_t computeServoStepTolerance(const rampsSharedData_t *shared)
+{
+    // Maximum possible step movement in ONE control cycle
+    int32_t maxStepThisCycle =
+        (int32_t)(
+            fabsf(shared->servo.currentSpeed) *
+            (float)shared->executionInterval /
+            100000000.0f
+        );
+
+    // +1 to account for truncation / integer rounding
+    return maxStepThisCycle + 1;
+}
+
+static inline void applyAssistedThreading(rampsSharedData_t *shared)
+{
+  uint16_t sp = shared->assistedThreadingData.spindleScaleIndex;
+  if (sp >= SCALES_COUNT) sp = 0;
+  input_t *spindleScale = &shared->scales[sp];
+
+  shared->assistedThreadingData.currentThreadPhase =
+    getSpindlePhase(
+      spindleScale->position,
+      shared->assistedThreadingData.spindleCountsPerRev
+    );
+
+  // Check for thread reset
+  if (shared->assistedThreadingData.threadReset == 1) {
+    shared->assistedThreadingData.threadPhaseActive = 0;
+    shared->assistedThreadingData.threadEnabled = 0;
+    shared->assistedThreadingData.threadReset = 2; // set to 2 to indicate reset done
+    spindleScale->syncEnable = 0;
+  }
+
+  // Threading-phase request handling
+  if (shared->assistedThreadingData.threadRequest == 1 && shared->assistedThreadingData.threadEnabled == 0) {
+    // latch only if we don't already have a reference
+    if (shared->assistedThreadingData.threadPhaseActive == 0) {
+      shared->assistedThreadingData.threadPhaseRef =
+      getSpindlePhase(
+        spindleScale->position,
+        shared->assistedThreadingData.spindleCountsPerRev
+      );
+      shared->assistedThreadingData.threadPhaseActive = 1;
+    }
+
+    shared->assistedThreadingData.threadEnabled = 1; // firmware is now waiting for match
+    shared->assistedThreadingData.threadRequest = 0; // clear request so host sees acknowledgement
+  }
+
+  // If firmware is waiting on the phase, check for match
+  if (shared->assistedThreadingData.threadEnabled == 1) {
+    int32_t delta =
+      shared->assistedThreadingData.currentThreadPhase -
+      shared->assistedThreadingData.threadPhaseRef;
+
+    // wrap-aware delta
+    int32_t half = shared->assistedThreadingData.spindleCountsPerRev / 2;
+    if (delta > half)  delta -= shared->assistedThreadingData.spindleCountsPerRev;
+    if (delta < -half) delta += shared->assistedThreadingData.spindleCountsPerRev;
+
+    int32_t tol = (int32_t)(shared->assistedThreadingData.spindlePhaseTolerance); // host-configurable tolerance (counts)
+
+    if (delta == 0 || (delta <= tol && delta >= -tol)) {
+      // matched -> start requested threading move
+      spindleScale->syncEnable = 1; // enable sync motion for the spindle scale
+
+      shared->assistedThreadingData.threadStartSteps = shared->servo.currentSteps;
+
+      shared->assistedThreadingData.threadPhaseActive = 1;
+
+      // clear waiting flags
+      shared->assistedThreadingData.threadEnabled = 0;
+      // clear the request so host can detect completion
+      shared->assistedThreadingData.threadRequest = 0;
+    }
+  }
+
+  if (shared->assistedThreadingData.threadEnabled == 0 && shared->assistedThreadingData.threadPhaseActive == 1) {
+    int32_t traveled = shared->servo.currentSteps - shared->assistedThreadingData.threadStartSteps;
+
+    int32_t remaining =
+      shared->assistedThreadingData.threadRemainingSteps - traveled;
+
+    int32_t tol = computeServoStepTolerance(shared);
+
+    if (remaining == 0 || (remaining <= tol && remaining >= -tol)) {
+      // completed move, clear phase reference
+      shared->assistedThreadingData.threadPhaseActive = 0;
+      spindleScale->syncEnable = 0;
+    }
+  }
+}
+
+
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 //  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
 //  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
   uint32_t start = DWT->CYCCNT;
   // Reset the step pin as soon as possible
   HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(STEP_GPIO_PORT, SPARE_2_PIN, GPIO_PIN_RESET);
   rampsSharedData_t *shared = &(data->shared);
   shared->executionIntervalPrevious = shared->executionIntervalCurrent;
   shared->executionIntervalCurrent = DWT->CYCCNT;
@@ -259,7 +371,13 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
     shared->fastData.scaleCurrent[i] = shared->scales[i].position;
   }
 
-  if (shared->fastData.servoMode == 1) updateIndexingPosition(data);
+  if (shared->fastData.servoMode == 1){
+    if (shared->assistedThreadingData.threadEnabled == 1 || shared->assistedThreadingData.threadRequest == 1 || shared->assistedThreadingData.threadPhaseActive == 1) {
+      applyAssistedThreading(shared);
+    }
+    updateIndexingPosition(data);
+  }
+
   if (shared->fastData.servoMode == 2) updateJogPosition(data);
 
   if (shared->fastData.servoMode != 0 && servoCyclesCounter == 0) {
@@ -278,6 +396,7 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
     if (direction == data->servoPreviousDirection && change != 0) {
       HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(STEP_GPIO_PORT, SPARE_2_PIN, GPIO_PIN_SET);
       shared->servo.currentSteps += direction;
     }
 
@@ -292,12 +411,17 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
   uint16_t oldInCnt = 0;
+  uint8_t blinkInterval = 0;
 
   for (;;) {
     osDelay(50);
+    blinkInterval = (blinkInterval + 1) % 10;
+    if (blinkInterval == 0) {
+      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
+    }
+
     if (oldInCnt != RampsModbusData.u16InCnt) {
       oldInCnt = RampsModbusData.u16InCnt;
-      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
       HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
       osDelay(25);
       HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
