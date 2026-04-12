@@ -1,0 +1,58 @@
+# Lathe Emulator Configuration
+# All dimensions in metric (mm) unless noted.
+# Display units are controlled by [display].units.
+
+[display]
+units = "metric"               # "metric" (mm) or "imperial" (inches)
+
+[spindle]
+counts_per_rev = 4000          # Encoder counts per revolution
+inertia_kg_m2 = 0.05           # Rotational inertia (kg*m^2)
+max_torque_nm = 2.0            # Max motor torque for accel/decel
+friction_nm = 0.1              # Constant friction torque
+initial_rpm = 0.0
+
+[leadscrew]
+tpi = 8                        # Threads per inch of the physical leadscrew
+mm_per_step = 0.0025           # Leadscrew travel per stepper step
+
+[z_axis]
+encoder_counts_per_mm = 400    # Z-axis DRO resolution
+backlash_mm = 0.02             # Mechanical backlash
+max_position_mm = 300.0
+min_position_mm = -5.0
+initial_position_mm = 0.0
+half_nut_engaged = false       # Initial half-nut state
+
+[cross_slide]
+encoder_counts_per_mm = 400    # Cross-slide DRO resolution
+max_position_mm = 100.0
+min_position_mm = -5.0
+initial_position_mm = 50.0
+manual_step_mm = 0.01          # (unused, kept for reference)
+jog_max_velocity_mm_s = 10.0   # Max manual jog speed (mm/s)
+jog_acceleration_mm_s2 = 50.0  # Manual jog acceleration (mm/s^2)
+x_up_is_negative = true        # true: Up arrow = -X (away from operator)
+manual_move_timeout_s = 2.0    # seconds of inactivity before auto-disabling manual move; 0 = no timeout (pure toggle)
+
+[servo]
+max_speed = 720                # steps/s (firmware default, overridable via Modbus)
+acceleration = 120             # steps/s^2
+
+[modbus]
+address = 17
+baud = 115200
+
+[transport]
+pty_enabled = true             # Create a PTY pair (prints slave device path on startup)
+tcp_port = 5020
+tcp_enabled = true
+
+[dashboard]
+refresh_hz = 10                # Dashboard update rate
+sparkline_seconds = 30         # History window for sparklines
+log_max_lines = 200            # Event log buffer depth
+
+[simulation]
+isr_rate_hz = 10000            # ISR tick rate (real: ~100kHz, emulator: 10kHz default)
+realtime = true                # true = wall-clock paced, false = fast-forward
