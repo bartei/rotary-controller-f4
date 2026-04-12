@@ -217,13 +217,6 @@ void Dashboard::drawStatePane(int startRow, int startCol, int width) {
 
     LINE("%s", "");
 
-    /* Threading section */
-    LINE(BOLD " THREADING" RESET_ATTR);
-    LINE(" remaining: %d  traveled: --", (int)0);
-    LINE(" phase ref: --  cur: --  tol: --");
-
-    LINE("%s", "");
-
     /* Scales */
     LINE(BOLD " SCALES" RESET_ATTR);
     const char *scale_names[] = { "spindle", "z-axis ", "x-slide", "spare  " };
