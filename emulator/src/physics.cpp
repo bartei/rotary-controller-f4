@@ -33,6 +33,7 @@ LathePhysics::LathePhysics(const EmuConfig &cfg) {
     spindle_theta = 0.0;
     spindle_omega = cfg.spindle_initial_rpm * 2.0 * M_PI / 60.0;
     spindle_target_rpm = cfg.spindle_initial_rpm;
+    spindle_cw = (cfg.spindle_initial_rpm >= 0);
 
     leadscrew_position_mm = 0.0;
     leadscrew_total_steps = 0;
@@ -114,7 +115,7 @@ void LathePhysics::tick(double dt, const void *shared_data) {
             /* Request to engage.
              * The leadscrew moves only when the firmware's servo is producing
              * steps (sync enabled + spindle turning). Check actual servo speed. */
-            bool leadscrew_moving = shared && std::abs(shared->servo.currentSpeed) > 0.1;
+            bool leadscrew_moving = shared && std::abs(shared->fastData.servoSpeed) > 0.1;
 
             if (!leadscrew_moving) {
                 /* Leadscrew stationary: snap carriage to nearest grid point and engage */
@@ -265,6 +266,7 @@ void LathePhysics::setTargetRPM(double rpm) {
 }
 
 void LathePhysics::toggleDirection() {
+    spindle_cw = !spindle_cw;
     spindle_target_rpm = -spindle_target_rpm;
 }
 

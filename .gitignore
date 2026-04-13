@@ -113,4 +113,7 @@ makefile
 subdir.mk
 
 # Emulator build
-/emulator/build/
+/emulator/build*/
+
+# AI
+.claude/

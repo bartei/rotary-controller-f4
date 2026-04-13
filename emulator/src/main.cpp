@@ -128,6 +128,14 @@ int main(int argc, char *argv[]) {
     rampsData.synchroRefreshTimer = &htim9;
     rampsData.modbusUart = &huart1;
 
+    /* Adjust htim9 prescaler so the firmware's clock_freq calculation yields
+     * the emulator's actual ISR rate.  On real hardware the timer runs at
+     * 100 kHz (100 MHz / (99+1) / (9+1)); the firmware derives the maximum
+     * step-pulse rate from that via servoCycles = clock_freq / maxSpeed.
+     * In the emulator the ISR fires at cfg.isr_rate_hz, so we must match:
+     *   100 MHz / (Prescaler+1) / (Period+1) == isr_rate_hz              */
+    htim9.Init.Prescaler = 100000000U / ((uint32_t)cfg.isr_rate_hz * (htim9.Init.Period + 1)) - 1;
+
     /* Apply config defaults to servo */
     rampsData.shared.servo.maxSpeed = (float)cfg.servo_max_speed;
     rampsData.shared.servo.acceleration = (float)cfg.servo_acceleration;

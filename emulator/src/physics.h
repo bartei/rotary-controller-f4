@@ -30,7 +30,7 @@ public:
 
     double getSpindleRPM() const { return spindle_omega * 60.0 / (2.0 * M_PI); }
     double getTargetRPM() const { return spindle_target_rpm; }
-    bool   getSpindleCW() const { return spindle_target_rpm >= 0; }
+    bool   getSpindleCW() const { return spindle_cw; }
     int64_t getSpindleEncoderCounts() const;
 
     /* --- Half-nut --- */
@@ -81,6 +81,7 @@ private:
     double spindle_theta;         /* cumulative angle in radians */
     double spindle_omega;         /* angular velocity in rad/s */
     double spindle_target_rpm;
+    bool   spindle_cw;            /* direction flag, survives stop/start */
 
     /* Leadscrew state (always tracks stepper steps) */
     double leadscrew_position_mm; /* cumulative from step pulses */

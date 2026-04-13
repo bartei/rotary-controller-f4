@@ -204,7 +204,7 @@ void Dashboard::drawStatePane(int startRow, int startCol, int width) {
     if (shared.fastData.servoMode == 1) mode_str = "SYNC";
     else if (shared.fastData.servoMode == 2) mode_str = "JOG";
 
-    LINE(" mode: %s  speed: %.0f stp/s", mode_str, shared.servo.currentSpeed);
+    LINE(" mode: %s  speed: %.0f stp/s", mode_str, shared.fastData.servoSpeed);
 
     const char *dir_str = (emu_hw.dir_pin) ? "FWD" : "REV";
     const char *ena_str = (emu_hw.ena_pin == 0) ? "ON" : "OFF";
@@ -351,8 +351,9 @@ void Dashboard::handleInput() {
                 if (!had_t) {
                     had_t = true;
                     if (std::abs(physics.getTargetRPM()) < 0.1) {
-                        physics.setTargetRPM(500.0);
-                        emu_log_event("spindle target -> 500 RPM");
+                        double rpm = physics.getSpindleCW() ? 500.0 : -500.0;
+                        physics.setTargetRPM(rpm);
+                        emu_log_event("spindle target -> %.0f RPM", rpm);
                     } else {
                         physics.setTargetRPM(0.0);
                         emu_log_event("spindle target -> 0 RPM");

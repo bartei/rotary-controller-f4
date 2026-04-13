@@ -232,10 +232,14 @@ struct SoftwareTimer {
                 if (expired) {
                     /* Timer fired */
                     if (!autoReload) running.store(false);
-                    /* The Modbus library casts TimerHandle_t as TimerHandle_t* in callback signature */
-                    TimerHandle_t self = (TimerHandle_t)this;
                     lock.unlock();
-                    callback(&self);
+                    /* The Modbus library declares its timer callbacks as
+                     * void cb(TimerHandle_t *pxTimer) but in real FreeRTOS
+                     * TimerCallbackFunction_t passes the handle by value.
+                     * The library then compares the received value against the
+                     * stored handle, so we must pass the handle value itself
+                     * (cast to match our typedef). */
+                    callback((TimerHandle_t*)this);
                 }
             }
         }
