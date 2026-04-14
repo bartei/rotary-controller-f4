@@ -101,10 +101,10 @@ int main(void)
   // htim4 is used in encoder mode
   // htim9 is used to generate the synchro motion
 
-  RampsData.shared.scales[0].timerHandle = &htim1;
-  RampsData.shared.scales[1].timerHandle = &htim2;
-  RampsData.shared.scales[2].timerHandle = &htim3;
-  RampsData.shared.scales[3].timerHandle = &htim4;
+  RampsData.scaleTimers[0] = &htim1;
+  RampsData.scaleTimers[1] = &htim2;
+  RampsData.scaleTimers[2] = &htim3;
+  RampsData.scaleTimers[3] = &htim4;
   RampsData.synchroRefreshTimer = &htim9;
   RampsData.modbusUart = &huart1;
   RampsStart(&RampsData);

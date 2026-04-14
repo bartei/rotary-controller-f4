@@ -119,10 +119,10 @@ int main(int argc, char *argv[]) {
 
     /* Wire timer handles to scales (same mapping as firmware's main.c) */
     extern TIM_HandleTypeDef htim1, htim2, htim3, htim4;
-    rampsData.shared.scales[0].timerHandle = &htim1;
-    rampsData.shared.scales[1].timerHandle = &htim2;
-    rampsData.shared.scales[2].timerHandle = &htim3;
-    rampsData.shared.scales[3].timerHandle = &htim4;
+    rampsData.scaleTimers[0] = &htim1;
+    rampsData.scaleTimers[1] = &htim2;
+    rampsData.scaleTimers[2] = &htim3;
+    rampsData.scaleTimers[3] = &htim4;
 
     /* Set synchro timer and UART handles */
     rampsData.synchroRefreshTimer = &htim9;
