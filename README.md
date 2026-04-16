@@ -15,6 +15,7 @@ This repository contains the **firmware** for a rotary controller board based on
 * Modular firmware structure with FreeRTOS support
 * Supports ST‑Link V2 and Raspberry Pi + OpenOCD programming
 * Optimized for high-speed encoder + stepper motor control
+* Includes a native lathe emulator for hardware-free testing with the Python GUI
 
 ---
 
@@ -55,6 +56,23 @@ make clean
   ```
 
   The default `raspberry.cfg` configures SWD over GPIO pins 24/25 + GND. Ensure GND wiring is the **same length** as SWCLK/SWDIO for reliability. Modify the GPIO pins in `raspberry.cfg` if needed.
+
+---
+
+## 🖥️ Lathe Emulator
+
+A native Linux emulator is included for hardware-free firmware testing. It compiles the real firmware sources (`Ramps.c`, `Modbus.c`, `Scales.c`, `UARTCallback.c`) against a HAL/FreeRTOS shim layer and simulates lathe physics — spindle with inertia, leadscrew, carriage with half-nut engagement, and cross-slide. The emulator exposes Modbus RTU via PTY pair and TCP socket so the unmodified Python GUI can connect as if talking to real hardware.
+
+A two-pane ANSI terminal dashboard with sparklines provides live visualization, with keyboard controls for spindle RPM, manual axis movement, half-nut engagement, and more. All parameters are configurable via TOML file.
+
+### Emulator Build & Run
+
+```bash
+cd emulator
+cmake -B build
+cmake --build build
+./build/lathe-emulator config/lathe.toml
+```
 
 ---
 

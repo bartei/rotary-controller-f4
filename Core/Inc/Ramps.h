@@ -58,11 +58,11 @@ typedef struct {
 } deltaPosError_t;
 
 typedef struct {
-  TIM_HandleTypeDef *timerHandle;
-  int32_t position;
-  int32_t speed;
-  int32_t syncRatioNum, syncRatioDen;
-  uint16_t syncEnable;
+  int32_t dummy;
+  int32_t position;                    // READ-ONLY (firmware-owned): absolute encoder position, updated by ISR
+  int32_t speed;                       // READ-ONLY (firmware-owned): encoder speed (counts/s), updated by updateSpeedTask
+  int32_t syncRatioNum, syncRatioDen;  // SW write: sync ratio numerator/denominator (output steps per input count)
+  uint16_t syncEnable;                 // SW write: 0 = sync disabled, non-zero = sync enabled for this scale
 } input_t;
 
 typedef struct {
@@ -106,6 +106,7 @@ typedef struct {
   // STM32 Related
   TIM_HandleTypeDef *synchroRefreshTimer;
   UART_HandleTypeDef *modbusUart;
+  TIM_HandleTypeDef *scaleTimers[SCALES_COUNT];
 
   deltaPosError_t scalesDeltaPos[SCALES_COUNT];
   deltaPosError_t scalesSyncDeltaPos[SCALES_COUNT];
